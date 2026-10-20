@@ -127,7 +127,7 @@ final class Mailbox
     /** @throws ImapException */
     public function connect(): ImapClient
     {
-        $credentials = Settings::credentials() ?? throw new ImapException('no mailbox configured in wp-config.php');
+        $credentials = Settings::credentials() ?? throw new ImapException('no mailbox configured');
         $client = new ImapClient(new TlsSocketStream($credentials['host'], $credentials['port']));
         $client->login($credentials['user'], $credentials['password']);
 

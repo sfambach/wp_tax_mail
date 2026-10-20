@@ -3,14 +3,19 @@
 namespace TaxMail\WordPress;
 
 use TaxMail\Core\Mailbox\FolderPlan;
+use TaxMail\Core\Secret\SecretBox;
+use TaxMail\Core\Secret\SecretException;
 
 /**
- * The module's settings in one option: which parsers are on, and the folder names. Credentials are not here but in
- * wp-config.php (D-942, M4), so no backup and no change log carries them.
+ * The module's settings in one option: which parsers are on, the folder names, the schedule. The mailbox account sits in
+ * an option of its own with the password sealed (his word 2026-10-20: «ja verschlüsselt einbauen»); constants in
+ * wp-config.php still win, for whoever prefers to keep it out of the database entirely.
  */
 final class Settings
 {
     public const OPTION = 'taxmail_settings';
+
+    public const ACCOUNT_OPTION = 'taxmail_mailbox';
 
     /** WP-Cron recurrences he can pick; '' switches the automatic fetch off (his word 2026-10-20: «einstellbar»). */
     public const SCHEDULES = ['', 'hourly', 'twicedaily', 'daily'];
@@ -58,18 +63,74 @@ final class Settings
         ], false);
     }
 
-    /** @return array{host: string, port: int, user: string, password: string}|null null while wp-config.php lacks them */
+    /** True when the account comes from wp-config.php; the settings page then shows no fields for it. */
+    public static function accountInConfig(): bool
+    {
+        return defined('TAXMAIL_IMAP_HOST') && defined('TAXMAIL_IMAP_USER') && defined('TAXMAIL_IMAP_PASSWORD');
+    }
+
+    /** @return array{host: string, port: int, user: string, password: string}|null null while no complete account is known */
     public static function credentials(): ?array
     {
-        if (! defined('TAXMAIL_IMAP_HOST') || ! defined('TAXMAIL_IMAP_USER') || ! defined('TAXMAIL_IMAP_PASSWORD')) {
+        if (self::accountInConfig()) {
+            return [
+                'host'     => (string) constant('TAXMAIL_IMAP_HOST'),
+                'port'     => defined('TAXMAIL_IMAP_PORT') ? (int) constant('TAXMAIL_IMAP_PORT') : 993,
+                'user'     => (string) constant('TAXMAIL_IMAP_USER'),
+                'password' => (string) constant('TAXMAIL_IMAP_PASSWORD'),
+            ];
+        }
+
+        $account = self::storedAccount();
+
+        if ($account['host'] === '' || $account['user'] === '' || $account['sealed'] === '') {
             return null;
         }
 
+        try {
+            $password = self::box()->open($account['sealed']);
+        } catch (SecretException) {
+            return null; // the salts changed since it was sealed; the settings page asks for the password again
+        }
+
+        return ['host' => $account['host'], 'port' => $account['port'], 'user' => $account['user'], 'password' => $password];
+    }
+
+    /** @return array{host: string, port: int, user: string, sealed: string, opens: bool} */
+    public static function storedAccount(): array
+    {
+        $stored = get_option(self::ACCOUNT_OPTION, []);
+        $stored = is_array($stored) ? $stored : [];
+        $sealed = (string) ($stored['password'] ?? '');
+        $opens = false;
+
+        if ($sealed !== '') {
+            try {
+                self::box()->open($sealed);
+                $opens = true;
+            } catch (SecretException) {
+            }
+        }
+
         return [
-            'host'     => (string) constant('TAXMAIL_IMAP_HOST'),
-            'port'     => defined('TAXMAIL_IMAP_PORT') ? (int) constant('TAXMAIL_IMAP_PORT') : 993,
-            'user'     => (string) constant('TAXMAIL_IMAP_USER'),
-            'password' => (string) constant('TAXMAIL_IMAP_PASSWORD'),
+            'host'   => (string) ($stored['host'] ?? ''),
+            'port'   => (int) ($stored['port'] ?? 993) ?: 993,
+            'user'   => (string) ($stored['user'] ?? ''),
+            'sealed' => $sealed,
+            'opens'  => $opens,
         ];
+    }
+
+    /** An empty $password keeps the stored one, so the form never has to show it. */
+    public static function saveAccount(string $host, int $port, string $user, string $password): void
+    {
+        $sealed = $password === '' ? self::storedAccount()['sealed'] : self::box()->seal($password);
+
+        update_option(self::ACCOUNT_OPTION, ['host' => $host, 'port' => $port, 'user' => $user, 'password' => $sealed], false);
+    }
+
+    private static function box(): SecretBox
+    {
+        return new SecretBox(wp_salt('auth'));
     }
 }

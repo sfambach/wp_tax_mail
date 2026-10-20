@@ -26,6 +26,8 @@ final class SettingsScreen
         $html .= '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         $html .= '<input type="hidden" name="action" value="taxmail_save">' . wp_nonce_field('taxmail_save', '_wpnonce', true, false);
 
+        $html .= $this->account();
+
         $html .= '<h2>' . esc_html__('Mail connections', 'taxmail') . '</h2>';
 
         if ($registry->all() === []) {
@@ -77,18 +79,43 @@ final class SettingsScreen
         return $html;
     }
 
+    private function account(): string
+    {
+        $html = '<h2>' . esc_html__('Mailbox', 'taxmail') . '</h2>';
+
+        if (Settings::accountInConfig()) {
+            return $html . '<p>' . esc_html__('The mailbox is set in wp-config.php (TAXMAIL_IMAP_* constants).', 'taxmail') . '</p>';
+        }
+
+        $account = Settings::storedAccount();
+        $passwordNote = match (true) {
+            $account['sealed'] === '' => __('No password stored yet.', 'taxmail'),
+            $account['opens']         => __('A password is stored encrypted. Leave empty to keep it.', 'taxmail'),
+            default                   => __('The stored password can no longer be decrypted (the WordPress salts changed). Enter it again.', 'taxmail'),
+        };
+
+        $html .= '<table class="form-table" role="presentation">';
+
+        foreach ([
+            'host' => [__('IMAP server', 'taxmail'), 'text', $account['host'], 'imap.example.com'],
+            'port' => [__('Port (SSL)', 'taxmail'), 'number', (string) $account['port'], '993'],
+            'user' => [__('User', 'taxmail'), 'text', $account['user'], 'einkauf@example.com'],
+        ] as $key => [$label, $type, $value, $placeholder]) {
+            $html .= '<tr><th scope="row"><label for="taxmail-account-' . esc_attr($key) . '">' . esc_html($label) . '</label></th>'
+                . '<td><input type="' . esc_attr($type) . '" class="regular-text" id="taxmail-account-' . esc_attr($key) . '" name="account[' . esc_attr($key) . ']" value="' . esc_attr($value) . '" placeholder="' . esc_attr($placeholder) . '" autocomplete="off"></td></tr>';
+        }
+
+        $html .= '<tr><th scope="row"><label for="taxmail-account-password">' . esc_html__('Password', 'taxmail') . '</label></th>'
+            . '<td><input type="password" class="regular-text" id="taxmail-account-password" name="account[password]" value="" autocomplete="new-password">'
+            . '<p class="description">' . esc_html($passwordNote) . '</p></td></tr></table>';
+
+        return $html;
+    }
+
     /** @param array<string, mixed>|null $check */
     private function connection(?array $check): string
     {
         $html = '<h2>' . esc_html__('Connection', 'taxmail') . '</h2>';
-
-        if (Settings::credentials() === null) {
-            $html .= '<p>' . esc_html__('Add the mailbox to wp-config.php:', 'taxmail') . '</p>'
-                . '<pre>define( \'TAXMAIL_IMAP_HOST\', \'imap.example.com\' );' . "\n"
-                . 'define( \'TAXMAIL_IMAP_PORT\', 993 );' . "\n"
-                . 'define( \'TAXMAIL_IMAP_USER\', \'einkauf@example.com\' );' . "\n"
-                . 'define( \'TAXMAIL_IMAP_PASSWORD\', \'…\' );</pre>';
-        }
 
         if ($check !== null) {
             $html .= $check['ok'] ? $this->success($check) : $this->failure($check);
@@ -133,7 +160,7 @@ final class SettingsScreen
     private function failure(array $check): string
     {
         $text = $check['error'] === 'no_credentials'
-            ? esc_html__('No mailbox configured in wp-config.php.', 'taxmail')
+            ? esc_html__('No mailbox configured yet — fill in the mailbox fields below and save.', 'taxmail')
             /* translators: %s: the server's answer */
             : sprintf(esc_html__('Connection failed: %s', 'taxmail'), esc_html((string) ($check['detail'] ?? '')));
 

@@ -2,7 +2,7 @@
 
 Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-modeler) (WordPress plugin).
 
-**Status: 0.0.1, not released.** Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; eBay is left to tax_ebay. The IMAP part is tested only against a scripted server, not against Strato. German translation in `languages/`. The draft concept (German) lives with the modeller:
+**Status: 0.0.2.** Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; eBay is left to tax_ebay. The IMAP part is tested only against a scripted server, not against Strato. German translation in `languages/`. The draft concept (German) lives with the modeller:
 [`docs/pakete/mail/konzept.md`](https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md).
 
 ## Idea in short
@@ -15,7 +15,11 @@ Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-
 
 ## Setup
 
-Mailbox credentials go into `wp-config.php`, not into the database:
+Enter the mailbox under *Taxonomy Modeller → Mail import settings → Mailbox* (server, port, user, password). The
+password is stored encrypted (libsodium secretbox, key derived from the WordPress auth salt in `wp-config.php`), so a
+database backup alone does not reveal it; the form never shows it again. If the salts change, the page asks for it anew.
+
+Alternatively the account can live in `wp-config.php`; these constants win over the fields:
 
 ```php
 define( 'TAXMAIL_IMAP_HOST', 'imap.example.com' );

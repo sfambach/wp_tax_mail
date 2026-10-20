@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.1';
+    public const VERSION     = '0.0.2';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -248,6 +248,17 @@ final class Plugin
         $defaults = $settings->folders;
 
         $schedule = isset($_POST['schedule']) ? sanitize_key(wp_unslash($_POST['schedule'])) : 'daily';
+
+        if (! Settings::accountInConfig() && isset($_POST['account']) && is_array($_POST['account'])) {
+            $account = wp_unslash($_POST['account']);
+            $port = absint($account['port'] ?? 993);
+            Settings::saveAccount(
+                sanitize_text_field((string) ($account['host'] ?? '')),
+                $port >= 1 && $port <= 65535 ? $port : 993,
+                sanitize_text_field((string) ($account['user'] ?? '')),
+                (string) ($account['password'] ?? '') // a password is taken as typed: sanitizing would change it
+            );
+        }
 
         (new Settings($parsers, new FolderPlan(
             $folder('inbox', $defaults->inbox),
