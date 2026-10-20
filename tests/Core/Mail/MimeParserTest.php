@@ -31,6 +31,15 @@ final class MimeParserTest extends TestCase
         self::assertSame('<p>Menge:&nbsp;2</p>', $mail->html);
     }
 
+    public function testCharacterSplitAcrossEncodedWordsSurvives(): void
+    {
+        $raw = "From: =?UTF-8?Q?eBay_K=C3=A4ufe?= <ebay@ebay.com>\r\n"
+            . "Subject: =?UTF-8?Q?Konvolut_Elektro_PC=E2=80?=\r\n =?UTF-8?Q?=A6_Gr=C3=BC=C3=9Fe?= =?ISO-8859-1?Q?_M=FCller?= und mehr\r\n"
+            . "\r\nText\r\n";
+
+        self::assertSame("Konvolut Elektro PC\u{2026} Grüße Müller und mehr", (new MimeParser())->parse(1, $raw)->subject);
+    }
+
     public function testHtmlOnlyMailGetsTextFromHtml(): void
     {
         $raw = "From: x@mouser.com\nContent-Type: text/html; charset=utf-8\n\n"

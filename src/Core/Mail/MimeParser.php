@@ -187,15 +187,57 @@ final class MimeParser
         return $converted === false ? mb_convert_encoding($text, 'UTF-8', 'Windows-1252') : $converted;
     }
 
+    /**
+     * RFC 2047 words decoded by hand: a sender may split one UTF-8 character across two encoded words, and iconv then
+     * gives up on the whole header. Adjacent words of one charset are joined as bytes first, then converted.
+     */
     private static function decodeHeader(string $value): string
     {
         if (! str_contains($value, '=?')) {
             return $value;
         }
 
-        $decoded = @iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR, 'UTF-8');
+        $parts = preg_split('/(=\?[^?\s]+\?[BbQq]\?[^?\s]*\?=)/', $value, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$value];
+        $out = '';
+        $pendingBytes = '';
+        $pendingCharset = null;
 
-        return $decoded === false ? $value : $decoded;
+        foreach ($parts as $index => $part) {
+            if (preg_match('/^=\?([^?*]+)(?:\*[^?]*)?\?([BbQq])\?([^?]*)\?=$/', $part, $word) === 1) {
+                $charset = strtoupper($word[1]);
+                $bytes = strtoupper($word[2]) === 'B'
+                    ? (string) base64_decode($word[3])
+                    : quoted_printable_decode(str_replace('_', ' ', $word[3]));
+
+                if ($pendingCharset !== null && $pendingCharset !== $charset) {
+                    $out .= self::toUtf8($pendingBytes, $pendingCharset);
+                    $pendingBytes = '';
+                }
+
+                $pendingCharset = $charset;
+                $pendingBytes .= $bytes;
+                continue;
+            }
+
+            // Whitespace between two encoded words belongs to the encoding, not to the text.
+            if ($pendingCharset !== null && trim($part) === '' && isset($parts[$index + 1])) {
+                continue;
+            }
+
+            if ($pendingCharset !== null) {
+                $out .= self::toUtf8($pendingBytes, $pendingCharset);
+                $pendingBytes = '';
+                $pendingCharset = null;
+            }
+
+            $out .= $part;
+        }
+
+        if ($pendingCharset !== null) {
+            $out .= self::toUtf8($pendingBytes, $pendingCharset);
+        }
+
+        return $out;
     }
 
     private static function address(string $from): string
