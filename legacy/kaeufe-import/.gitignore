@@ -1,0 +1,6 @@
+# Echte Mails enthalten Adressen und Bestelldaten — nie ins Repository
+samples/
+*.eml
+imap.ini
+__pycache__/
+wp.ini

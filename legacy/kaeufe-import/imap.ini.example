@@ -1,0 +1,6 @@
+# Kopieren nach ~/.config/kaeufe-import/imap.ini und dann: chmod 600 ~/.config/kaeufe-import/imap.ini
+[imap]
+host = imap.strato.de
+port = 993
+user = einkauf@fambach.net
+password = HIER-DAS-PASSWORT

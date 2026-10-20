@@ -1,0 +1,6 @@
+# Kopieren nach ~/.config/kaeufe-import/wp.ini und dann: chmod 600 ~/.config/kaeufe-import/wp.ini
+# Anwendungspasswort des Benutzers auto_einkauf (Rolle taxmod_data_writer), nie ins Repository.
+[wordpress]
+url = https://www.fambach.net
+user = auto_einkauf
+app_password = HIER-DAS-ANWENDUNGSPASSWORT
