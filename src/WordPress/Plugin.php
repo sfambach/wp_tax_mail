@@ -48,6 +48,7 @@ final class Plugin
         register_deactivation_hook($file, static fn () => wp_clear_scheduled_hook(self::CRON_HOOK));
 
         add_action('admin_init', Schema::upgrade(...));
+        add_action('admin_init', self::schedule(...));
         add_action('admin_menu', $plugin->registerMenu(...), 20);
         add_action(self::CRON_HOOK, $plugin->runCron(...));
         add_action('admin_post_taxmail_save', $plugin->handleSave(...));
@@ -60,10 +61,18 @@ final class Plugin
     public function activate(): void
     {
         Schema::upgrade();
+        self::schedule();
+    }
 
-        if (! wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', self::CRON_HOOK);
+    /** Once a day is enough; the button on the review page fetches on demand (his word, 2026-10-20). */
+    public static function schedule(): void
+    {
+        if (wp_get_schedule(self::CRON_HOOK) === 'daily') {
+            return;
         }
+
+        wp_clear_scheduled_hook(self::CRON_HOOK);
+        wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', self::CRON_HOOK);
     }
 
     /** WP-Cron runs without a user: it may fetch and store, never write to the model (that needs his pick anyway). */

@@ -2,7 +2,7 @@
 
 Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-modeler) (WordPress plugin).
 
-**Status: 0.0.1, not released.** Fetching (hourly WP-Cron and a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. **No shop parser yet**, so nothing is recognised; the IMAP part is tested only against a scripted server, not against Strato. The draft concept (German) lives with the modeller:
+**Status: 0.0.1, not released.** Fetching (daily WP-Cron and a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. **No shop parser yet**, so nothing is recognised; the IMAP part is tested only against a scripted server, not against Strato. The draft concept (German) lives with the modeller:
 [`docs/pakete/mail/konzept.md`](https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md).
 
 ## Idea in short

@@ -25,8 +25,8 @@ final class Mailbox
     public const STATE_OPTION = 'taxmail_state';
     private const LOCK = 'taxmail_fetch_lock';
 
-    /** Mails per run — short runs fit Strato's time limits; the cron comes back in an hour. */
-    private const LIMIT = 25;
+    /** Mails per run — keeps a run inside Strato's time limits; the rest comes with the next run or the button. */
+    private const LIMIT = 60;
 
     public function __construct(
         private readonly Settings $settings,
