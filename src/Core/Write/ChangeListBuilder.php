@@ -21,7 +21,7 @@ use TaxMail\Core\Proposal\ProposalLine;
  */
 final class ChangeListBuilder
 {
-    private const TITLE_LENGTH = 60;
+    private const TITLE_LENGTH = 45;
 
     public function __construct(private readonly TargetModel $target)
     {
@@ -47,9 +47,9 @@ final class ChangeListBuilder
             $this->target->orderField('ordered_at')   => $proposal->orderDate,
             $this->target->orderField('origin')       => ['values' => [(string) $this->target->originDocumented]],
             $this->target->orderField('origin_note')  => $originNote,
-            $this->target->orderField('shipping_cost') => $this->amount($proposal->shippingCost, $currency),
-            $this->target->orderField('fees')         => $this->amount($proposal->fees, $currency),
-            $this->target->orderField('total')        => $this->amount($proposal->total, $currency),
+            $this->target->orderField('shipping_cost') => $this->amount('shipping_cost', $proposal->shippingCost, $currency, true),
+            $this->target->orderField('fees')         => $this->amount('fees', $proposal->fees, $currency, true),
+            $this->target->orderField('total')        => $this->amount('total', $proposal->total, $currency, true),
             $this->target->orderField('tracking')     => $proposal->trackingNumbers === [] ? null : ['values' => $proposal->trackingNumbers],
         ]);
 
@@ -99,15 +99,15 @@ final class ChangeListBuilder
     /** @return array<string, mixed> */
     private function purchaseValues(ProposalLine $line, int $currency, ?string $landedUnitPrice, string $originNote): array
     {
-        $unit = Money::toCents($line->unitPrice);
+        $unit = Money::toUnits($line->unitPrice);
 
         return $this->withoutEmpty([
             $this->target->purchaseField('title')             => $line->title,
-            $this->target->purchaseField('quantity')          => self::quantity($line->quantity),
+            $this->target->purchaseField('quantity')          => $line->quantity === null ? null : self::quantity($line->quantity),
             $this->target->purchaseField('article_number')    => $line->articleNumber,
-            $this->target->purchaseField('unit_price')        => $this->amount($line->unitPrice, $currency),
-            $this->target->purchaseField('total_price')       => $unit === null ? null : $this->amount(Money::fromCents((int) round($unit * $line->quantity)), $currency),
-            $this->target->purchaseField('landed_unit_price') => $this->amount($landedUnitPrice, $currency),
+            $this->target->purchaseField('unit_price')        => $this->amount('unit_price', $line->unitPrice, $currency),
+            $this->target->purchaseField('total_price')       => $unit === null || $line->quantity === null ? null : $this->amount('total_price', Money::format((int) round($unit * $line->quantity)), $currency),
+            $this->target->purchaseField('landed_unit_price') => $this->amount('landed_unit_price', $landedUnitPrice, $currency),
             $this->target->purchaseField('origin')            => ['values' => [(string) $this->target->originDocumented]],
             $this->target->purchaseField('origin_note')       => $originNote,
         ]);
@@ -119,45 +119,72 @@ final class ChangeListBuilder
         $lineTotals = [];
 
         foreach ($proposal->lines as $index => $line) {
-            $unit = Money::toCents($line->unitPrice);
+            $unit = Money::toUnits($line->unitPrice);
 
-            if ($unit === null || $line->quantity <= 0) {
+            if ($unit === null || $line->quantity === null || $line->quantity <= 0) {
                 return [];
             }
 
-            $lineTotals[$index] = (int) round($unit * $line->quantity);
+            $lineTotals[$index] = $unit * $line->quantity;
         }
 
         $sum = array_sum($lineTotals);
-        $extra = (Money::toCents($proposal->shippingCost) ?? 0) + (Money::toCents($proposal->fees) ?? 0);
+        $extra = (Money::toUnits($proposal->shippingCost) ?? 0) + (Money::toUnits($proposal->fees) ?? 0);
         $landed = [];
 
         foreach ($lineTotals as $index => $lineTotal) {
-            $share = $sum === 0 ? 0 : $extra * $lineTotal / $sum;
-            $landed[$index] = Money::fromCents((int) round(($lineTotal + $share) / $proposal->lines[$index]->quantity));
+            $share = $sum == 0 ? $extra / count($lineTotals) : $extra * $lineTotal / $sum;
+            $landed[$index] = Money::format((int) round(($lineTotal + $share) / $proposal->lines[$index]->quantity));
         }
 
         return $landed;
     }
 
-    /** @return array{0: array<string, string>}|null the unit-value part create_record already made: amount and currency */
-    private function amount(?string $amount, int $currency): ?array
+    /**
+     * A unit value: amount and currency. A required part (1..1) already stands empty on a new record, so «0» fills
+     * it; an optional one does not exist yet, so a name («neu») creates it — same rule as the Python importer.
+     *
+     * @return array<string, array<string, string>>|null
+     */
+    private function amount(string $role, ?string $amount, int $currency, bool $onOrder = false): ?array
     {
-        $cents = Money::toCents($amount);
+        $units = Money::toUnits($amount);
 
-        return $cents === null ? null : ['0' => [
-            (string) $this->target->amountField => Money::fromCents($cents),
+        if ($units === null) {
+            return null;
+        }
+
+        $field = $onOrder ? $this->target->orderField($role) : $this->target->purchaseField($role);
+
+        return [in_array($field, $this->target->requiredParts, true) ? '0' : 'neu' => [
+            (string) $this->target->amountField => Money::format($units),
             (string) $this->target->unitField   => (string) $currency,
         ]];
     }
 
-    /** @param list<int> $pickedLines */
+    /**
+     * «Reichelt I-123456 · LM317 Spannungsregler (+2)», as the Python importer named orders.
+     *
+     * @param list<int> $pickedLines
+     */
     private function orderTitle(OrderProposal $proposal, array $pickedLines): string
     {
-        $first = $proposal->lines[$pickedLines[0]]->title ?? '';
-        $title = trim($proposal->platform . ' ' . $proposal->orderNumber . ($first === '' ? '' : ' · ' . $first));
+        $first = self::shorten($proposal->lines[$pickedLines[0]]->title ?? '');
+        $more = count($pickedLines) > 1 ? sprintf(' (+%d)', count($pickedLines) - 1) : '';
 
-        return mb_strlen($title) > self::TITLE_LENGTH ? rtrim(mb_substr($title, 0, self::TITLE_LENGTH - 1)) . '…' : $title;
+        return trim($proposal->platform . ' ' . $proposal->orderNumber . ($first === '' ? '' : ' · ' . $first . $more));
+    }
+
+    private static function shorten(string $text): string
+    {
+        if (mb_strlen($text) <= self::TITLE_LENGTH) {
+            return $text;
+        }
+
+        $cut = mb_substr($text, 0, self::TITLE_LENGTH);
+        $space = mb_strrpos($cut, ' ');
+
+        return rtrim($space === false ? $cut : mb_substr($cut, 0, $space), ' -–,/') . ' …';
     }
 
     private static function quantity(float $quantity): string

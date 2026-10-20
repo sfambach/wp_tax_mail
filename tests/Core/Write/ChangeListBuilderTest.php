@@ -21,7 +21,8 @@ final class ChangeListBuilderTest extends TestCase
             new ProposalLine('Lochraster', 1, '5.00', 'H25PR'),
         ], shippingCost: '5.95', total: '16.95', counterparty: 'reichelt elektronik');
 
-        $changes = (new ChangeListBuilder(self::target()))->newOrder($proposal, [0], 'Aus Mail.');
+        $builder = new ChangeListBuilder(self::target());
+        $changes = $builder->newOrder($proposal, [0], 'Aus Mail.');
 
         self::assertCount(4, $changes);
         self::assertSame(['op' => 'create_record', 'node' => 10, 'ref' => 'o'], $changes[0]);
@@ -30,17 +31,18 @@ final class ChangeListBuilderTest extends TestCase
         $purchase = $changes[2]['values'];
         self::assertSame('LM317', $purchase['201']);
         self::assertSame('10', $purchase['203']);
-        self::assertSame(['0' => ['4234' => '0.50', '4236' => '8571']], $purchase['205']);
-        self::assertSame(['0' => ['4234' => '5.00', '4236' => '8571']], $purchase['206']);
-        // 5.95 shipping, half of the goods value is this item: (5.00 + 2.975) / 10 = 0.7975 → 0.80
-        self::assertSame(['0' => ['4234' => '0.80', '4236' => '8571']], $purchase['207']);
+        self::assertSame(['0' => ['4234' => '0.5', '4236' => '8571']], $purchase['205']);
+        self::assertSame(['0' => ['4234' => '5', '4236' => '8571']], $purchase['206']);
+        // 5.95 shipping, half of the goods value is this item: (5.00 + 2.975) / 10; optional part, so a new one
+        self::assertSame(['neu' => ['4234' => '0.7975', '4236' => '8571']], $purchase['207']);
 
         $order = $changes[3]['values'];
         self::assertSame('@o', $changes[3]['record']);
         self::assertSame('Reichelt I-123456 · LM317', $order['101']);
+        self::assertSame('Reichelt I-123456 · LM317 (+1)', $builder->newOrder($proposal, [0, 1], '')[5]['values']['101']);
         self::assertSame(['values' => ['@p0']], $order['113']);
         self::assertSame(['values' => ['99']], $order['102']);
-        self::assertSame(['0' => ['4234' => '16.95', '4236' => '8571']], $order['111']);
+        self::assertSame(['neu' => ['4234' => '16.95', '4236' => '8571']], $order['111']);
         self::assertFalse(isset($order['110']));
     }
 
@@ -63,9 +65,11 @@ final class ChangeListBuilderTest extends TestCase
 
     public function testMoneyRoundTrip(): void
     {
-        self::assertSame(1234, Money::toCents('12.34'));
-        self::assertSame(1230, Money::toCents('12.3'));
-        self::assertSame('-0.05', Money::fromCents(-5));
+        self::assertSame(123400, Money::toUnits('12.34'));
+        self::assertSame(1235, Money::toUnits('0.12345'));
+        self::assertSame('12.3', Money::format(Money::toUnits('12.30')));
+        self::assertSame('-0.05', Money::format(-500));
+        self::assertSame('3', Money::format(30000));
     }
 
     private static function target(): TargetModel
@@ -77,6 +81,6 @@ final class ChangeListBuilderTest extends TestCase
         ], [
             'title' => 201, 'origin' => 202, 'quantity' => 203, 'article_number' => 204, 'unit_price' => 205,
             'total_price' => 206, 'landed_unit_price' => 207, 'origin_note' => 208,
-        ], ['EUR' => 8571]);
+        ], ['EUR' => 8571], [205, 206]);
     }
 }

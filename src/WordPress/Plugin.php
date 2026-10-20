@@ -9,10 +9,10 @@ use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\ParserRegistry;
+use TaxMail\Core\Parser\ShippedParsers;
 use TaxMail\Core\Proposal\OrderProposal;
 use TaxMail\Core\Proposal\ProposalKind;
 use TaxMail\Core\Write\ChangeListBuilder;
-use TaxMail\Core\Write\ExistingOrder;
 use TaxMail\Core\Write\WriteException;
 use WP_Error;
 
@@ -102,7 +102,7 @@ final class Plugin
     public static function registry(Settings $settings): ParserRegistry
     {
         $parsers = array_values(array_filter(
-            (array) apply_filters('taxmail_parsers', []),
+            (array) apply_filters('taxmail_parsers', ShippedParsers::all()),
             static fn (mixed $parser): bool => $parser instanceof OrderMailParser
         ));
 
@@ -182,11 +182,20 @@ final class Plugin
         $builder = new ChangeListBuilder(Targets::load());
 
         try {
-            $changes = match ($proposal->kind) {
-                ProposalKind::Ordered   => $builder->newOrder($proposal, $this->pickedLines(count($proposal->lines)), self::originNote($row, $proposal)),
-                ProposalKind::Shipped   => $builder->shipped($this->existing($model, $proposal), $proposal->trackingNumbers),
-                ProposalKind::Delivered => $builder->delivered($this->existing($model, $proposal), substr((string) ($row['received_at'] ?? current_time('mysql')), 0, 10)),
-                default                 => throw new WriteException('this kind of mail cannot be taken over'),
+            $existing = $model->findOrder($proposal->platform, $proposal->orderNumber);
+
+            if ($existing instanceof WP_Error) {
+                throw new WriteException($existing->get_error_message());
+            }
+
+            $changes = match (true) {
+                $existing === null && $proposal->lines !== []
+                    => $builder->newOrder($proposal, $this->pickedLines(count($proposal->lines)), self::originNote($row, $proposal)),
+                $existing !== null && $proposal->kind === ProposalKind::Shipped
+                    => $builder->shipped($existing, $proposal->trackingNumbers),
+                $existing !== null && $proposal->kind === ProposalKind::Delivered
+                    => $builder->delivered($existing, substr((string) ($row['received_at'] ?? current_time('mysql')), 0, 10)),
+                default => throw new WriteException(__('this mail cannot be taken over', 'taxmail')),
             };
         } catch (WriteException $refusal) {
             /* translators: %s: reason */
@@ -315,17 +324,6 @@ final class Plugin
         $posted = isset($_POST['lines']) && is_array($_POST['lines']) ? array_map('absint', wp_unslash($_POST['lines'])) : [];
 
         return array_values(array_filter(array_unique($posted), static fn (int $index): bool => $index < $lineCount));
-    }
-
-    private function existing(ModelGateway $model, OrderProposal $proposal): ExistingOrder
-    {
-        $order = $model->findOrder($proposal->platform, $proposal->orderNumber);
-
-        if ($order instanceof WP_Error) {
-            throw new WriteException($order->get_error_message());
-        }
-
-        return $order ?? throw new WriteException('the order is not in the model');
     }
 
     /** @param array<string, mixed> $row */

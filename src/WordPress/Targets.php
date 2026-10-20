@@ -44,6 +44,8 @@ final class Targets
             'landed_unit_price' => 149000110065,
         ],
         'currencies'        => ['EUR' => 8571, 'USD' => 8573, 'GBP' => 8582, 'AUD' => 149000109994],
+        // «Preis je Stück», «Preis gesamt» at «Käufe» are 1..1: their part already stands on a new record.
+        'required_parts'    => [149000110048, 149000110049],
     ];
 
     public static function load(): TargetModel
@@ -61,6 +63,7 @@ final class Targets
             $ids($merged['order_fields']),
             $ids($merged['purchase_fields']),
             $ids($merged['currencies']),
+            array_values($ids($merged['required_parts'])),
         );
     }
 }

@@ -3,27 +3,34 @@
 namespace TaxMail\Core\Write;
 
 /**
- * Decimal strings as whole cents, so prices add up without float drift.
+ * Decimal strings as whole ten-thousandths, so prices add up without float drift. Four places, as the Python
+ * importer wrote them (a unit price can be a line total divided by the quantity).
  */
 final class Money
 {
-    public static function toCents(?string $amount): ?int
+    public const SCALE = 10000;
+
+    public static function toUnits(?string $amount): ?int
     {
         if ($amount === null || trim($amount) === '') {
             return null;
         }
 
-        if (preg_match('/^(-)?(\d+)(?:\.(\d{1,2}))?$/', trim($amount), $match) !== 1) {
+        if (preg_match('/^(-)?(\d+)(?:\.(\d{1,5}))?$/', trim($amount), $match) !== 1) {
             throw new WriteException('not a decimal amount: ' . $amount);
         }
 
-        $cents = (int) $match[2] * 100 + (int) str_pad($match[3] ?? '', 2, '0');
+        $fraction = (int) round((float) ('0.' . ($match[3] ?? '0')) * self::SCALE);
+        $units = (int) $match[2] * self::SCALE + $fraction;
 
-        return $match[1] === '-' ? -$cents : $cents;
+        return $match[1] === '-' ? -$units : $units;
     }
 
-    public static function fromCents(int $cents): string
+    /** «12.5», «0.1234», «3» — trailing zeros dropped, as the model shows them anyway. */
+    public static function format(int $units): string
     {
-        return sprintf('%s%d.%02d', $cents < 0 ? '-' : '', intdiv(abs($cents), 100), abs($cents) % 100);
+        $text = sprintf('%s%d.%04d', $units < 0 ? '-' : '', intdiv(abs($units), self::SCALE), abs($units) % self::SCALE);
+
+        return rtrim(rtrim($text, '0'), '.');
     }
 }

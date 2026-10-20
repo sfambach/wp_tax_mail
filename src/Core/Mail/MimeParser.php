@@ -19,40 +19,50 @@ use Exception;
  */
 final class MimeParser
 {
+    private const FORWARDED = '/Forwarded Message -+\s*Subject:\s*(.*?)\s*Date:\s*(.*?)\s*From:\s*(.*?)\s*To:/s';
+
     public function parse(int $uid, string $raw): MailMessage
     {
         [$headers, $body] = self::split($raw);
-        $text = '';
+        $plain = '';
         $html = '';
-        $this->collect($headers, $body, $text, $html);
+        $this->collect($headers, $body, $plain, $html);
 
-        if ($text === '' && $html !== '') {
-            $text = self::htmlToText($html);
+        // The shop parsers read the HTML as lines, as the Python importer did; plain text only when there is no HTML.
+        $text = $html !== '' ? self::htmlToText($html) : str_replace("\r", '', $plain);
+        $subject = self::decodeHeader($headers['subject'] ?? '');
+        $date = $headers['date'] ?? '';
+        $from = $headers['from'] ?? '';
+
+        // A forwarded shop mail (JLCPCB reaches the mailbox that way) counts as the original: its sender, subject, date.
+        if (preg_match(self::FORWARDED, mb_substr($text, 0, 3000), $forwarded, PREG_OFFSET_CAPTURE) === 1) {
+            [$subject, $date, $from] = [trim($forwarded[1][0]), trim($forwarded[2][0]), trim($forwarded[3][0])];
+            $text = substr($text, $forwarded[0][1] + strlen($forwarded[0][0]));
+        } else {
+            $subject = preg_replace('/^(Fwd|WG|AW|Fw):\s*/i', '', $subject) ?? $subject;
         }
 
         return new MailMessage(
             $uid,
-            self::address($headers['from'] ?? ''),
-            self::decodeHeader($headers['subject'] ?? ''),
-            self::date($headers['date'] ?? ''),
+            self::address($from),
+            $subject,
+            self::date($date),
             $text,
             $html,
             trim($headers['message-id'] ?? ''),
         );
     }
 
-    /** Readable text from shop HTML: block ends become line breaks, entities decoded, runs of blanks folded. */
+    /** Readable text from shop HTML, line for line as the Python importer made it: every cell and block on its own line. */
     public static function htmlToText(string $html): string
     {
-        $html = preg_replace('#<(script|style|head)\b.*?</\1>#is', '', $html) ?? $html;
-        $html = preg_replace('#<br\s*/?>|</(p|div|tr|li|h[1-6]|table)>#i', "\n", $html) ?? $html;
-        $html = preg_replace('#</t[dh]>#i', ' ', $html) ?? $html;
-        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = str_replace("\u{00A0}", ' ', $text);
-        $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
-        $text = preg_replace('/ *\n */', "\n", $text) ?? $text;
+        $html = preg_replace('#<(script|style|head)\b.*?</\1>#is', ' ', $html) ?? $html;
+        $html = preg_replace('#<br\s*/?>|</(p|div|tr|td|li|h\d|table)>#i', "\n", $html) ?? $html;
+        $text = html_entity_decode(preg_replace('/<[^>]+>/', ' ', $html) ?? $html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/[\x{034F}\x{200C}\x{200B}\x{00AD}\x{2007}]/u', '', $text) ?? $text;
+        $text = preg_replace('/[ \t\x{00A0}]+/u', ' ', $text) ?? $text;
 
-        return trim(preg_replace("/\n{3,}/", "\n\n", $text) ?? $text);
+        return trim(preg_replace('/\n\s*\n+/', "\n", $text) ?? $text);
     }
 
     /** @param array<string, string> $headers */
@@ -87,7 +97,7 @@ final class MimeParser
         $decoded = self::toUtf8(self::transferDecode($body, $headers['content-transfer-encoding'] ?? ''), $parameters['charset'] ?? 'us-ascii');
 
         if ($type === 'text/plain' && $text === '') {
-            $text = trim($decoded);
+            $text = $decoded;
         } elseif ($type === 'text/html' && $html === '') {
             $html = $decoded;
         }

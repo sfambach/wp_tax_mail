@@ -14,6 +14,8 @@ enum ProposalKind: string
     case Refunded = 'refunded';
     case Invoice = 'invoice';
     case Sold = 'sold';
+    /** About an order, but nothing to write — customer service, an invoice without order number. Discard only. */
+    case Other = 'other';
     /** A shop mail without an order in it — advertising, newsletter; goes to the «discarded» folder. */
     case NoReceipt = 'no_receipt';
 }

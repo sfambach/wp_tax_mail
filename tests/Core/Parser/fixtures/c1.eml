@@ -1,0 +1,8 @@
+From: Conrad <service@conrad.de>
+Subject: Bestellt: Ihre Bestellung 1234567890
+Date: Tue, 15 Oct 2024 10:00:00 +0200
+Message-ID: <c1@x>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><body><table><tr><td>Ihre Bestellung</td></tr><tr><td>Lötzinn 100g</td></tr><tr><td>Menge: 2</td></tr><tr><td>Einzelpreis 7,99 €</td></tr><tr><td>Artikelnummer 123456</td></tr><tr><td>Versandkosten</td></tr><tr><td>4,95 €</td></tr><tr><td>Summe</td></tr><tr><td>20,93 €</td></tr></table></body></html>

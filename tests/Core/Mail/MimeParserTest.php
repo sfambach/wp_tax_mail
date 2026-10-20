@@ -27,7 +27,7 @@ final class MimeParserTest extends TestCase
         self::assertSame('reichelt.de', $mail->senderDomain());
         self::assertSame('Bestellbestätigung I-123456', $mail->subject);
         self::assertSame('2026-10-20', $mail->date?->format('Y-m-d'));
-        self::assertSame('Menge: 2 Stück', $mail->text);
+        self::assertSame('Menge: 2', $mail->text);
         self::assertSame('<p>Menge:&nbsp;2</p>', $mail->html);
     }
 
@@ -39,7 +39,7 @@ final class MimeParserTest extends TestCase
 
         $mail = (new MimeParser())->parse(1, $raw);
 
-        self::assertSame("Artikel Menge\nLM317 5", $mail->text);
+        self::assertSame(['Artikel', 'Menge', 'LM317', '5'], $mail->lines());
     }
 
     public function testAttachmentsAreSkipped(): void
@@ -47,6 +47,31 @@ final class MimeParserTest extends TestCase
         $raw = "From: a@b.de\nContent-Type: multipart/mixed; boundary=x\n\n--x\nContent-Type: text/plain\n\nHallo\n"
             . "--x\nContent-Type: text/plain\nContent-Disposition: attachment; filename=r.txt\n\nRechnung\n--x--\n";
 
-        self::assertSame('Hallo', (new MimeParser())->parse(1, $raw)->text);
+        self::assertSame(['Hallo'], (new MimeParser())->parse(1, $raw)->lines());
+    }
+
+    public function testForwardedMailCountsAsTheOriginal(): void
+    {
+        $raw = "From: stefan@example.de\nSubject: Fwd: x\nContent-Type: text/plain; charset=utf-8\n\n"
+            . "-------- Forwarded Message --------\nSubject: Your order W202410201234567 is On Its Way\n"
+            . "Date: Mon, 21 Oct 2024 08:00:00 +0000\nFrom: JLCPCB <support@jlcpcb.com>\nTo: einkauf@example.de\n\nItems in this shipment\n";
+
+        $mail = (new MimeParser())->parse(1, $raw);
+
+        self::assertSame('support@jlcpcb.com', $mail->fromAddress);
+        self::assertSame('Your order W202410201234567 is On Its Way', $mail->subject);
+        self::assertSame('2024-10-21', $mail->date?->format('Y-m-d'));
+        // As in the Python importer, the cut is behind «To:», so the address line stays.
+        self::assertSame(['einkauf@example.de', 'Items in this shipment'], $mail->lines());
+    }
+
+    public function testDoubleEncodedUtf8IsTurnedBack(): void
+    {
+        $raw = "From: a@b.de\nSubject: AW: Test\nContent-Type: text/plain; charset=utf-8\n\n" . mb_convert_encoding('Stück', 'UTF-8', 'ISO-8859-1') . "\n";
+
+        $mail = (new MimeParser())->parse(1, $raw);
+
+        self::assertSame('Test', $mail->subject);
+        self::assertSame(['Stück'], $mail->lines());
     }
 }

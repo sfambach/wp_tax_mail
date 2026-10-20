@@ -96,15 +96,16 @@ final class ReviewScreen
             . '<input type="hidden" name="proposal" value="' . esc_attr((string) $id) . '">'
             . wp_nonce_field('taxmail_review_' . $id, '_wpnonce', true, false);
 
-        $canTake = $this->model !== null && match ($kind) {
-            ProposalKind::Ordered   => ! $existing instanceof ExistingOrder,
-            ProposalKind::Shipped,
-            ProposalKind::Delivered => $existing instanceof ExistingOrder,
-            default                 => false,
-        };
+        $lines = (array) ($data['lines'] ?? []);
+        // A shipping mail with items (JLCPCB, Mouser) can bring an order the model does not have yet.
+        $asNewOrder = ! $existing instanceof ExistingOrder && $lines !== []
+            && in_array($kind, [ProposalKind::Ordered, ProposalKind::Shipped, ProposalKind::Delivered], true);
+        $canTake = $this->model !== null && ($asNewOrder || (
+            $existing instanceof ExistingOrder && in_array($kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)
+        ));
 
-        if ($kind === ProposalKind::Ordered) {
-            $html .= $this->lines((array) ($data['lines'] ?? []), (string) ($data['currency'] ?? 'EUR'), $canTake);
+        if ($asNewOrder) {
+            $html .= $this->lines($lines, (string) ($data['currency'] ?? 'EUR'), $canTake);
             $html .= '<p>' . esc_html(sprintf(
                 /* translators: 1: shipping, 2: total, 3: currency */
                 __('Shipping %1$s · total %2$s %3$s', 'taxmail'),
@@ -112,8 +113,13 @@ final class ReviewScreen
                 $data['total'] ?? '–',
                 $data['currency'] ?? ''
             )) . '</p>';
-        } elseif (! $existing instanceof ExistingOrder) {
+        } elseif (! $existing instanceof ExistingOrder && $kind !== ProposalKind::Ordered) {
             $html .= '<p>' . esc_html__('The order is not in the model, so there is nothing to add this to.', 'taxmail') . '</p>';
+        }
+
+        if (($data['tracking'] ?? []) !== []) {
+            /* translators: %s: tracking numbers */
+            $html .= '<p>' . esc_html(sprintf(__('Tracking: %s', 'taxmail'), implode(', ', (array) $data['tracking']))) . '</p>';
         }
 
         if ($canTake) {
@@ -136,7 +142,7 @@ final class ReviewScreen
             $html .= '<tr><td><input type="checkbox" name="lines[]" value="' . esc_attr((string) $index) . '" checked'
                 . disabled($enabled, false, false) . ' aria-label="' . esc_attr((string) ($line['title'] ?? '')) . '"></td>'
                 . '<td>' . esc_html((string) ($line['title'] ?? '')) . '</td>'
-                . '<td>' . esc_html((string) ($line['quantity'] ?? '')) . '</td>'
+                . '<td>' . esc_html(isset($line['quantity']) ? (string) $line['quantity'] : '–') . '</td>'
                 . '<td>' . esc_html(isset($line['unit_price']) ? $line['unit_price'] . ' ' . $currency : '–') . '</td>'
                 . '<td>' . esc_html((string) ($line['article_number'] ?? '')) . '</td></tr>';
         }
@@ -155,6 +161,7 @@ final class ReviewScreen
             ProposalKind::Invoice   => __('invoice', 'taxmail'),
             ProposalKind::Sold      => __('sold', 'taxmail'),
             ProposalKind::NoReceipt => __('no receipt', 'taxmail'),
+            ProposalKind::Other     => __('other', 'taxmail'),
         };
     }
 }

@@ -14,6 +14,7 @@ final class TargetModel
      * @param array<string, int> $purchaseFields role => relation id: title, origin, origin_note, quantity,
      *        article_number, unit_price, total_price, landed_unit_price
      * @param array<string, int> $currencies ISO code => unit node id
+     * @param list<int> $requiredParts unit-value fields with multiplicity 1..1 — their part exists on a new record
      */
     public function __construct(
         public readonly int $ordersNode,
@@ -24,6 +25,7 @@ final class TargetModel
         public readonly array $orderFields,
         public readonly array $purchaseFields,
         public readonly array $currencies,
+        public readonly array $requiredParts = [],
     ) {
     }
 
