@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.15';
+    public const VERSION     = '0.0.16';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -244,6 +244,8 @@ final class Plugin
             delete_option(Mailbox::BACKLOG_OPTION);
         }
 
+        wp_raise_memory_limit('admin');
+
         try {
             $counts = (new Mailbox(Settings::load()))->sortBacklog(new ModelGateway(Targets::load()));
             $this->notice(sprintf(
@@ -255,12 +257,22 @@ final class Plugin
                 $counts['remaining']
             ));
 
+            if ($counts['failed'] > 0) {
+                /* translators: 1: number of mails, 2: the first error */
+                $this->notice(sprintf(__('%1$d mails could not be read and stay in the inbox. First: %2$s', 'taxmail'), $counts['failed'], (string) $counts['first_failure']));
+            }
+
             if ($counts['checked'] === 0 && $counts['remaining'] === 0) {
                 $this->notice(__('The backlog is done. To read it again, tick «Start again from the oldest mail».', 'taxmail'));
             }
         } catch (ImapException $failure) {
             /* translators: %s: the server's answer */
             $this->notice(sprintf(__('Sorting the backlog failed: %s', 'taxmail'), $failure->getMessage()));
+        } catch (\Throwable $failure) {
+            // Reported on the page instead of WordPress's «critical error», which tells him nothing.
+            /* translators: %s: the server's answer */
+            $this->notice(sprintf(__('Sorting the backlog failed: %s', 'taxmail'), $failure::class . ': ' . $failure->getMessage()
+                . ' (' . basename($failure->getFile()) . ':' . $failure->getLine() . ')'));
         }
 
         $this->back(self::PAGE, []);

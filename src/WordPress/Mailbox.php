@@ -138,7 +138,7 @@ final class Mailbox
      * already goes to «Importiert», a mail a parser reads otherwise becomes a proposal, everything else stays in the
      * inbox untouched (his word 2026-10-20: «alle mail nochmal parsen lassen und doppelte aussortieren»).
      *
-     * @return array{checked: int, moved: int, stored: int, remaining: int}
+     * @return array{checked: int, moved: int, stored: int, remaining: int, failed: int, first_failure: ?string}
      * @throws ImapException
      */
     public function sortBacklog(ModelGateway $model): array
@@ -163,6 +163,10 @@ final class Mailbox
             $cursor = is_array($backlog) && (int) ($backlog['uid_validity'] ?? 0) === $status->uidValidity && (int) ($backlog['mode'] ?? 1) === 2
                 ? (int) ($backlog['cursor'] ?? 0)
                 : 0;
+            // A mail that ended the last run without a word (memory, time limit) is still marked as being tried: skip it,
+            // or every click would die on the same mail.
+            $crashed = is_array($backlog) && (int) ($backlog['trying'] ?? 0) > $cursor ? (int) $backlog['trying'] : null;
+            $cursor = $crashed ?? $cursor;
             $end = (int) $state['last_uid'];
             $pending = array_values(array_filter($client->uidsAfter($cursor), static fn (int $uid): bool => $uid <= $end));
             $fetcher = new MailFetcher(Plugin::registry($this->settings));
@@ -171,13 +175,36 @@ final class Mailbox
             $checked = 0;
             $moved = 0;
             $stored = 0;
+            $failed = $crashed === null ? 0 : 1;
+            $firstFailure = $crashed === null ? null : 'UID ' . $crashed . ': the last run stopped on this mail';
+            $previous = $cursor;
 
             foreach ($pending as $uid) {
                 if (microtime(true) - $started > self::BACKLOG_SECONDS) {
                     break;
                 }
 
-                $result = $fetcher->fetchOne($client, $uid);
+                update_option(self::BACKLOG_OPTION, ['uid_validity' => $status->uidValidity, 'cursor' => $previous, 'mode' => 2, 'trying' => $uid], false);
+
+                try {
+                    $result = $fetcher->fetchOne($client, $uid);
+                } catch (ImapException $failure) {
+                    throw $failure;
+                } catch (\Throwable $failure) {
+                    // One mail nobody planned for must not stop the backlog at the same place on every click.
+                    $result = null;
+                    $firstFailure ??= 'UID ' . $uid . ': ' . $failure->getMessage();
+                }
+
+                if ($result === null || $result->outcome === FetchOutcome::Failed) {
+                    $failed++;
+                    $firstFailure ??= 'UID ' . $uid . ': ' . ($result?->error ?? '');
+                    $checked++;
+                    update_option(self::BACKLOG_OPTION, ['uid_validity' => $status->uidValidity, 'cursor' => $uid, 'mode' => 2], false);
+                    $previous = $uid;
+                    continue;
+                }
+
                 $proposal = $result->proposal;
                 $this->table->forgetOpen($result->mail->messageId);
 
@@ -198,9 +225,11 @@ final class Mailbox
 
                 $checked++;
                 update_option(self::BACKLOG_OPTION, ['uid_validity' => $status->uidValidity, 'cursor' => $uid, 'mode' => 2], false);
+                $previous = $uid;
             }
 
-            return ['checked' => $checked, 'moved' => $moved, 'stored' => $stored, 'remaining' => count($pending) - $checked];
+            return ['checked' => $checked, 'moved' => $moved, 'stored' => $stored, 'remaining' => count($pending) - $checked,
+                'failed' => $failed, 'first_failure' => $firstFailure];
         } finally {
             $client->logout();
             delete_transient(self::LOCK);

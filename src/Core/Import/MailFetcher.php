@@ -65,6 +65,10 @@ final class MailFetcher
             $proposal = $parser->parse($mail);
         } catch (ParserException $failure) {
             return new FetchedMail($mail, FetchOutcome::Failed, $parser->key(), null, $failure->getMessage());
+        } catch (\Throwable $failure) {
+            // A real mail the parser was not written for must cost that mail, not the whole fetch.
+            return new FetchedMail($mail, FetchOutcome::Failed, $parser->key(), null,
+                $failure::class . ': ' . $failure->getMessage() . ' (' . basename($failure->getFile()) . ':' . $failure->getLine() . ')');
         }
 
         $outcome = $proposal->kind === ProposalKind::NoReceipt ? FetchOutcome::NoReceipt : FetchOutcome::Proposed;

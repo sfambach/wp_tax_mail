@@ -2,6 +2,7 @@
 // German translation of Taxmod Mail (WordPress .l10n.php format, WP 6.5+).
 return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     '%1$d mails read, %2$d stored, %3$d sorted into folders.' => '%1$d Mails gelesen, %2$d gespeichert, %3$d in Ordner einsortiert.',
+    '%1$d mails could not be read and stay in the inbox. First: %2$s' => '%1$d Mails konnten nicht gelesen werden und bleiben im Posteingang. Erste: %2$s',
     '%1$s %2$s taken over.' => '%1$s %2$s übernommen.',
     '%1$s: %2$d mails found, %3$d new; %4$d read, %5$d not recognised, %6$d failed.' => '%1$s: %2$d Mails gefunden, %3$d neu; %4$d gelesen, %5$d nicht erkannt, %6$d fehlgeschlagen.',
     'A password is stored encrypted. Leave empty to keep it.' => 'Ein Passwort ist verschlüsselt gespeichert. Leer lassen, um es zu behalten.',
