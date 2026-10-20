@@ -61,6 +61,13 @@ final class ShopParsersTest extends TestCase
         self::assertSame('no_receipt', self::read('e5')['kind']);
     }
 
+    public function testEbayMailAboutOwnSaleIsNoPurchase(): void
+    {
+        $order = self::read('e7');
+
+        self::assertSame(['sold', '24-15238-03470', []], [$order['kind'], $order['order_number'], $order['lines']]);
+    }
+
     public function testEbayInvoiceWithoutOrderNumberGetsThePythonKey(): void
     {
         $order = self::read('e6');

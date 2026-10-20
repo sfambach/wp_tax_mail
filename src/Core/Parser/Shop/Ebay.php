@@ -47,6 +47,12 @@ final class Ebay implements OrderMailParser
             return $this->sale($mail);
         }
 
+        // Mails about his own sales (a buyer's request, case or return) carry «Bestellnummer:» like a purchase; read as
+        // one they would offer his sold item as a new purchase.
+        if (preg_match('/Ihr Käufer|Käufer hat|an den Käufer|Käufer.*(Anfrage|Rückgabe|Fall)|Ihren Verkauf|Sie haben verkauft/u', $mail->subject) === 1) {
+            return $this->aboutOwnSale($mail);
+        }
+
         if (in_array('Bestellnummer:', $mail->lines(), true) && preg_match(self::ADVERT, $mail->subject) !== 1) {
             return $this->purchase($mail);
         }
@@ -248,6 +254,15 @@ final class Ebay implements OrderMailParser
         return new OrderProposal($this->shopName(), $number, ProposalKind::Sold, $mail->date?->format('Y-m-d'), $currency ?? 'EUR',
             $items->lines(), Text::decimal($shipping), Text::decimal($sold === null ? null : round($sold + ($shipping ?? 0), 2)),
             Text::after($lines, 'Käufer:'));
+    }
+
+    private function aboutOwnSale(MailMessage $mail): OrderProposal
+    {
+        $lines = $mail->lines();
+        $index = array_search('Bestellnummer:', $lines, true);
+        $number = $index !== false && preg_match(self::ORDER_NUMBER, $lines[$index + 1] ?? '') === 1 ? $lines[$index + 1] : (Text::after($lines, 'Bestellung:') ?? '');
+
+        return new OrderProposal($this->shopName(), $number, $number === '' ? ProposalKind::NoReceipt : ProposalKind::Sold, $mail->date?->format('Y-m-d'));
     }
 
     /** A won auction or an eBay invoice names no order number; the key is the one the Python importer gave them. */
