@@ -37,6 +37,7 @@ final class MimeParser
             self::date($headers['date'] ?? ''),
             $text,
             $html,
+            trim($headers['message-id'] ?? ''),
         );
     }
 

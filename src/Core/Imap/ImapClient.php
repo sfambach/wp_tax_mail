@@ -146,6 +146,18 @@ final class ImapClient
         return $uids;
     }
 
+    /** Finds a mail again after the server renumbered its UIDs (UIDVALIDITY changed); null when it is gone. */
+    public function uidByMessageId(string $messageId): ?int
+    {
+        foreach ($this->command('UID SEARCH HEADER Message-ID ' . self::quote($messageId)) as $response) {
+            if (preg_match('/^SEARCH (\d+)/i', $response->text, $match) === 1) {
+                return (int) $match[1];
+            }
+        }
+
+        return null;
+    }
+
     /** The whole mail as the server stores it; PEEK keeps it unread. */
     public function fetchRaw(int $uid): string
     {

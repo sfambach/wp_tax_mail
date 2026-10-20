@@ -16,6 +16,7 @@ final class MailMessage
         public readonly ?DateTimeImmutable $date,
         public readonly string $text,
         public readonly string $html,
+        public readonly string $messageId = '',
     ) {
     }
 
