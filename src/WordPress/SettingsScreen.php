@@ -130,6 +130,7 @@ final class SettingsScreen
             . esc_html__('Reads the mails from before the starting point: a mail whose order is in the model already moves to «Imported», a mail a parser can read becomes a proposal, all others stay in the inbox. Each click works for about 20 seconds; click again until nothing is left.', 'taxmail')
             . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
             . '<input type="hidden" name="action" value="taxmail_backlog">' . wp_nonce_field('taxmail_backlog', '_wpnonce', true, false)
+            . '<p><label><input type="checkbox" name="from_start" value="1"> ' . esc_html__('Start again from the oldest mail (after a parser was switched on or fixed)', 'taxmail') . '</label></p>'
             . get_submit_button(__('Sort backlog', 'taxmail'), 'secondary', 'submit', false)
             . '</form>';
 

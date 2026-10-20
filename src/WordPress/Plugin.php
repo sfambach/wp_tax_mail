@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.9';
+    public const VERSION     = '0.0.10';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -240,6 +240,10 @@ final class Plugin
             $this->back(self::PAGE, []);
         }
 
+        if (isset($_POST['from_start'])) {
+            delete_option(Mailbox::BACKLOG_OPTION);
+        }
+
         try {
             $counts = (new Mailbox(Settings::load()))->sortBacklog(new ModelGateway(Targets::load()));
             $this->notice(sprintf(
@@ -250,6 +254,10 @@ final class Plugin
                 $counts['stored'],
                 $counts['remaining']
             ));
+
+            if ($counts['checked'] === 0 && $counts['remaining'] === 0) {
+                $this->notice(__('The backlog is done. To read it again, tick «Start again from the oldest mail».', 'taxmail'));
+            }
         } catch (ImapException $failure) {
             /* translators: %s: the server's answer */
             $this->notice(sprintf(__('Sorting the backlog failed: %s', 'taxmail'), $failure->getMessage()));
