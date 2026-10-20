@@ -8,6 +8,7 @@ use TaxMail\Core\Imap\TlsSocketStream;
 use TaxMail\Core\Import\FetchOutcome;
 use TaxMail\Core\Import\MailFetcher;
 use TaxMail\Core\Mailbox\FolderPlan;
+use TaxMail\Core\Proposal\ProposalKind;
 use TaxMail\Core\Write\ExistingOrder;
 
 /**
@@ -182,7 +183,9 @@ final class Mailbox
                     && $model->findOrder($proposal->platform, $proposal->orderNumber) instanceof ExistingOrder) {
                     $client->move($uid, $target);
                     $moved++;
-                } elseif ($result->outcome === FetchOutcome::Proposed) {
+                } elseif ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->lines !== []
+                    && ! in_array($proposal->kind, [ProposalKind::Sold, ProposalKind::Refunded, ProposalKind::Cancelled], true)) {
+                    // Only what could become a new order: years of sale and refund mails would bury the page.
                     $this->table->forgetUnread($result->mail->messageId);
 
                     if ($this->table->add($result, $status->uidValidity) !== null) {

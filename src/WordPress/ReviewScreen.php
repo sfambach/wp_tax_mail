@@ -102,9 +102,10 @@ final class ReviewScreen
             . wp_nonce_field('taxmail_review_' . $id, '_wpnonce', true, false);
 
         $lines = (array) ($data['lines'] ?? []);
-        // A shipping mail with items (JLCPCB, Mouser) can bring an order the model does not have yet.
+        // Any mail with items can bring an order the model does not have yet — a shipping mail (JLCPCB, Mouser), an
+        // AliExpress status mail, an eBay invoice — as the Python importer did; sales and refunds cannot.
         $asNewOrder = ! $existing instanceof ExistingOrder && $lines !== []
-            && in_array($kind, [ProposalKind::Ordered, ProposalKind::Shipped, ProposalKind::Delivered], true);
+            && in_array($kind, [ProposalKind::Ordered, ProposalKind::Shipped, ProposalKind::Delivered, ProposalKind::Other, ProposalKind::Invoice], true);
         $canTake = $this->model !== null && ($asNewOrder || (
             $existing instanceof ExistingOrder && in_array($kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)
         ));

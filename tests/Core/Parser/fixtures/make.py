@@ -19,3 +19,14 @@ eml('j1','Stefan <stefan@example.de>','Fwd: Order',
     ['-------- Forwarded Message --------','Subject: Your Order W202410151234567 Review Completed','Date: Tue, 15 Oct 2024 08:00:00 +0000','From: JLCPCB <support@jlcpcb.com>','To: einkauf@example.de','【W202410151234567】','isa8_multi_io_gerber_Y87','Approved','backplane-rev2','Approved','View order'])
 eml('j2','Stefan <stefan@example.de>','Fwd: Order',
     ['-------- Forwarded Message --------','Subject: Your order W202410151234567 is On Its Way','Date: Mon, 21 Oct 2024 08:00:00 +0000','From: JLCPCB <support@jlcpcb.com>','To: einkauf@example.de','Ready for pick up by DHL Express. Tracking Number: 1234567890','Items in this shipment','isa8_multi_io_gerber_Y87','5 pcs','backplane-rev2(Reorder)','10 pcs','View order'])
+E='eBay <ebay@ebay.com>'
+eml('e1',E,'Bestellung bestätigt: ISA Floppy Controller',
+    ['Danke für Ihren Kauf','ISA 8-bit Floppy Multi-I/O Controller Zilog','Preis:','EUR 45,00','Artikelnr.:','123456789012','Lieferung ca.:','Fr, 18. Okt','Bestellnummer:','27-13610-49402','Verkäufer:','r-o-r-c','Gesamtbetrag:','Zwischensumme (1 Artikel)','EUR 45,00','Versand','EUR 6,99','Gesamtbetrag wird abgebucht','EUR 51,99','eBay-Käuferschutz'])
+eml('e2',E,'Ihre Bestellung wurde verschickt',
+    ['Gute Nachrichten','ISA 8-bit Floppy Multi-I/O Controller Zilog','Bestellnummer:','27-13610-49402','Verkäufer:','r-o-r-c','Sendungsnummer:','00340434610899111','Versanddienstleister:','DHL'])
+eml('e3',E,'Artikel verkauft - Commodore 64 Netzteil',
+    ['Glückwunsch','Bestellung:','11-22222-33333','Käufer:','retrofan42','Verkaufte Stückzahl:','2','Verkauft:','EUR 30,00','Versand:','EUR 5,49'])
+eml('e4',E,'Bestellung bestätigt: 2 Artikel',
+    ['Danke','Z80 CPU','Preis:','EUR 12,00 (3 x EUR 4,00)','Artikelnr.:','223344556677','Bestellnummer:','12-34567-89012','Verkäufer:','chipshop','62256 SRAM','Preis:','EUR 3,50','Artikelnr.:','998877665544','Bestellnummer:','12-34567-89012','Verkäufer:','chipshop','Gesamtbetrag:','Zwischensumme (2 Artikel)','EUR 15,50','Versand','Kostenlos','Mehrwertsteuer','EUR 2,95','Gesamtbetrag wird abgebucht','EUR 18,45','eBay-Käuferschutz'])
+eml('e5',E,'Sparen Sie 20 % Rabatt auf Elektronik',['Angebote','Bestellnummer:','00-00000-00000'])
+eml('e6',E,'Ihre Rechnung für den eBay-Kauf',['Rechnung','334455667788','Atari 2600 Joystick','1','EUR 19,90','EUR 19,90','Gesamt:','EUR 24,80'])

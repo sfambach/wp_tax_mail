@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.5';
+    public const VERSION     = '0.0.6';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -110,8 +110,10 @@ final class Plugin
             static fn (mixed $parser): bool => $parser instanceof OrderMailParser
         ));
 
-        // tax_ebay adds «ebay» here while it is active, so its API and this mail parser never both write an eBay order.
-        $blocked = array_values(array_map('strval', (array) apply_filters('taxmail_blocked_parsers', [])));
+        // While tax_ebay is active its API reads eBay, so this mail parser stays off and never writes an eBay order too
+        // (D-942). Found by its plugin folder; the filter lets other modules block their shops the same way.
+        $taxEbayActive = array_filter((array) get_option('active_plugins', []), static fn (mixed $path): bool => preg_match('/tax[_-]ebay/i', (string) $path) === 1) !== [];
+        $blocked = array_values(array_map('strval', (array) apply_filters('taxmail_blocked_parsers', $taxEbayActive ? ['ebay'] : [])));
 
         return new ParserRegistry($parsers, $settings->parsers, $blocked);
     }

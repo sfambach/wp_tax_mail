@@ -15,11 +15,57 @@ final class ShopParsersTest extends TestCase
     /** @return array<string, mixed> */
     private static function read(string $fixture): array
     {
-        $registry = new ParserRegistry(ShippedParsers::all(), array_fill_keys(['reichelt', 'mouser', 'conrad', 'aliexpress', 'jlcpcb'], true), []);
+        $registry = new ParserRegistry(ShippedParsers::all(), array_fill_keys(['ebay', 'reichelt', 'mouser', 'conrad', 'aliexpress', 'jlcpcb'], true), []);
         $mail = (new MimeParser())->parse(1, (string) file_get_contents(__DIR__ . '/fixtures/' . $fixture . '.eml'));
         $parser = $registry->parserFor($mail) ?? throw new \RuntimeException('no parser for ' . $fixture);
 
         return $parser->parse($mail)->toArray();
+    }
+
+    public function testEbayConfirmation(): void
+    {
+        $order = self::read('e1');
+
+        self::assertSame(['Ebay', '27-13610-49402', 'ordered', '6.99', '51.99', 'r-o-r-c'], [$order['platform'], $order['order_number'], $order['kind'], $order['shipping_cost'], $order['total'], $order['counterparty']]);
+        self::assertSame([['title' => 'ISA 8-bit Floppy Multi-I/O Controller Zilog', 'quantity' => 1.0, 'unit_price' => '45', 'article_number' => '123456789012']], $order['lines']);
+    }
+
+    public function testEbayShippingBringsTracking(): void
+    {
+        $order = self::read('e2');
+
+        self::assertSame(['shipped', '27-13610-49402', ['00340434610899111']], [$order['kind'], $order['order_number'], $order['tracking']]);
+    }
+
+    public function testEbaySale(): void
+    {
+        $order = self::read('e3');
+
+        self::assertSame(['sold', '11-22222-33333', '5.49', '35.49', 'retrofan42'], [$order['kind'], $order['order_number'], $order['shipping_cost'], $order['total'], $order['counterparty']]);
+        self::assertSame([['title' => 'Commodore 64 Netzteil', 'quantity' => 2.0, 'unit_price' => '15', 'article_number' => null]], $order['lines']);
+    }
+
+    public function testEbayTwoItemsQuantityAndVat(): void
+    {
+        $order = self::read('e4');
+
+        self::assertSame(['0', '18.45', '2.95'], [$order['shipping_cost'], $order['total'], $order['fees']]);
+        self::assertSame([
+            ['title' => 'Z80 CPU', 'quantity' => 3.0, 'unit_price' => '4', 'article_number' => '223344556677'],
+            ['title' => '62256 SRAM', 'quantity' => 1.0, 'unit_price' => '3.5', 'article_number' => '998877665544'],
+        ], $order['lines']);
+    }
+
+    public function testEbayAdvertIsNoReceipt(): void
+    {
+        self::assertSame('no_receipt', self::read('e5')['kind']);
+    }
+
+    public function testEbayInvoiceWithoutOrderNumberGetsThePythonKey(): void
+    {
+        $order = self::read('e6');
+
+        self::assertSame(['invoice', 'ohne-Nr:334455667788', '24.8'], [$order['kind'], $order['order_number'], $order['total']]);
     }
 
     public function testReicheltConfirmation(): void
