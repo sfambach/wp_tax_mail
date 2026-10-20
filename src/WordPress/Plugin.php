@@ -47,6 +47,7 @@ final class Plugin
         register_activation_hook($file, $plugin->activate(...));
         register_deactivation_hook($file, static fn () => wp_clear_scheduled_hook(self::CRON_HOOK));
 
+        add_action('init', static fn () => load_plugin_textdomain('taxmail', false, dirname(plugin_basename($file)) . '/languages'));
         add_action('admin_init', Schema::upgrade(...));
         add_action('admin_init', self::schedule(...));
         add_action('admin_menu', $plugin->registerMenu(...), 20);
