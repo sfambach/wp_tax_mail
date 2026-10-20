@@ -2,7 +2,7 @@
 
 Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-modeler) (WordPress plugin).
 
-**Status: 0.0.4.** Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; eBay is left to tax_ebay. The IMAP part is tested only against a scripted server, not against Strato. German translation in `languages/`. The draft concept (German) lives with the modeller:
+**Status: 0.0.5.** Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; eBay is left to tax_ebay. The IMAP part is tested only against a scripted server, not against Strato. German translation in `languages/`. The draft concept (German) lives with the modeller:
 [`docs/pakete/mail/konzept.md`](https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md).
 
 ## Idea in short
@@ -33,9 +33,9 @@ and creates the target folders that are missing.
 
 ## Use
 
-The first fetch only sets a starting point: older mails are not read. **Sort backlog** (settings page) then checks
-the older mails a slice per click and moves those whose order is already in the model to «Importiert»; the rest stay
-in the inbox. **Start over from now** moves what the fetch sorted away («Nicht erkannt», «Verworfen») back to the
+The first fetch only sets a starting point: older mails are not read. **Sort backlog** (settings page) then reads
+the older mails a slice per click: those whose order is already in the model move to «Importiert», those a parser
+can read become proposals, the rest stay in the inbox. **Start over from now** moves what the fetch sorted away («Nicht erkannt», «Verworfen») back to the
 inbox, forgets untaken proposals and sets the starting point anew. Testing the connection also subscribes the
 folders, so mail programs show them. **Fetch order** (review page) reads the inbox mails that mention one order
 number, also from before the starting point.

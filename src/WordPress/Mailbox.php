@@ -132,11 +132,11 @@ final class Mailbox
     }
 
     /**
-     * Sorts the backlog — the mails before the starting point — a slice per call: a mail whose order is in the model
-     * already goes to «Importiert», everything else stays in the inbox untouched and no proposal is made (§3a; his
-     * choice 2026-10-20: «Neu ab jetzt + Altbestand per Knopf»).
+     * Reads the backlog — the mails before the starting point — a slice per call: a mail whose order is in the model
+     * already goes to «Importiert», a mail a parser reads otherwise becomes a proposal, everything else stays in the
+     * inbox untouched (his word 2026-10-20: «alle mail nochmal parsen lassen und doppelte aussortieren»).
      *
-     * @return array{checked: int, moved: int, remaining: int}
+     * @return array{checked: int, moved: int, stored: int, remaining: int}
      * @throws ImapException
      */
     public function sortBacklog(ModelGateway $model): array
@@ -157,7 +157,10 @@ final class Mailbox
             }
 
             $backlog = get_option(self::BACKLOG_OPTION, []);
-            $cursor = is_array($backlog) && (int) ($backlog['uid_validity'] ?? 0) === $status->uidValidity ? (int) ($backlog['cursor'] ?? 0) : 0;
+            // Mode 2 also stores proposals; a cursor from the move-only first version starts over so nothing is skipped.
+            $cursor = is_array($backlog) && (int) ($backlog['uid_validity'] ?? 0) === $status->uidValidity && (int) ($backlog['mode'] ?? 1) === 2
+                ? (int) ($backlog['cursor'] ?? 0)
+                : 0;
             $end = (int) $state['last_uid'];
             $pending = array_values(array_filter($client->uidsAfter($cursor), static fn (int $uid): bool => $uid <= $end));
             $fetcher = new MailFetcher(Plugin::registry($this->settings));
@@ -165,6 +168,7 @@ final class Mailbox
             $started = microtime(true);
             $checked = 0;
             $moved = 0;
+            $stored = 0;
 
             foreach ($pending as $uid) {
                 if (microtime(true) - $started > self::BACKLOG_SECONDS) {
@@ -178,13 +182,19 @@ final class Mailbox
                     && $model->findOrder($proposal->platform, $proposal->orderNumber) instanceof ExistingOrder) {
                     $client->move($uid, $target);
                     $moved++;
+                } elseif ($result->outcome === FetchOutcome::Proposed) {
+                    $this->table->forgetUnread($result->mail->messageId);
+
+                    if ($this->table->add($result, $status->uidValidity) !== null) {
+                        $stored++;
+                    }
                 }
 
                 $checked++;
-                update_option(self::BACKLOG_OPTION, ['uid_validity' => $status->uidValidity, 'cursor' => $uid], false);
+                update_option(self::BACKLOG_OPTION, ['uid_validity' => $status->uidValidity, 'cursor' => $uid, 'mode' => 2], false);
             }
 
-            return ['checked' => $checked, 'moved' => $moved, 'remaining' => count($pending) - $checked];
+            return ['checked' => $checked, 'moved' => $moved, 'stored' => $stored, 'remaining' => count($pending) - $checked];
         } finally {
             $client->logout();
             delete_transient(self::LOCK);

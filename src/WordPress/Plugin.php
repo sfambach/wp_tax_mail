@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.4';
+    public const VERSION     = '0.0.5';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -241,10 +241,11 @@ final class Plugin
         try {
             $counts = (new Mailbox(Settings::load()))->sortBacklog(new ModelGateway(Targets::load()));
             $this->notice(sprintf(
-                /* translators: 1: mails checked, 2: moved to «Importiert», 3: still to check */
-                __('Backlog: %1$d mails checked, %2$d already in the model and moved to «Imported», %3$d still to check.', 'taxmail'),
+                /* translators: 1: mails checked, 2: moved to «Importiert», 3: new proposals, 4: still to check */
+                __('Backlog: %1$d mails checked, %2$d already in the model and moved to «Imported», %3$d new proposals, %4$d still to check.', 'taxmail'),
                 $counts['checked'],
                 $counts['moved'],
+                $counts['stored'],
                 $counts['remaining']
             ));
         } catch (ImapException $failure) {
