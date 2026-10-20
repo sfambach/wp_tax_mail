@@ -49,4 +49,25 @@ final class OrderProposal
             'tracking'      => $this->trackingNumbers,
         ];
     }
+
+    /** @param array<string, mixed> $row what toArray() produced, back from JSON */
+    public static function fromArray(array $row): self
+    {
+        $text = static fn (string $key): ?string => isset($row[$key]) && $row[$key] !== '' ? (string) $row[$key] : null;
+
+        return new self(
+            (string) ($row['platform'] ?? ''),
+            (string) ($row['order_number'] ?? ''),
+            ProposalKind::from((string) ($row['kind'] ?? ProposalKind::Ordered->value)),
+            $text('order_date'),
+            (string) ($row['currency'] ?? 'EUR'),
+            array_map(static fn (array $line): ProposalLine => ProposalLine::fromArray($line), array_values((array) ($row['lines'] ?? []))),
+            $text('shipping_cost'),
+            $text('total'),
+            $text('counterparty'),
+            $text('fees'),
+            $text('shipped_date'),
+            array_values(array_map('strval', (array) ($row['tracking'] ?? []))),
+        );
+    }
 }

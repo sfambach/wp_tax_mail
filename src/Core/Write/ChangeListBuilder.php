@@ -140,12 +140,12 @@ final class ChangeListBuilder
         return $landed;
     }
 
-    /** @return array{neu: array<string, string>}|null a new unit-value part: amount and currency */
+    /** @return array{0: array<string, string>}|null the unit-value part create_record already made: amount and currency */
     private function amount(?string $amount, int $currency): ?array
     {
         $cents = Money::toCents($amount);
 
-        return $cents === null ? null : ['neu' => [
+        return $cents === null ? null : ['0' => [
             (string) $this->target->amountField => Money::fromCents($cents),
             (string) $this->target->unitField   => (string) $currency,
         ]];

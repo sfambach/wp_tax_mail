@@ -2,7 +2,7 @@
 
 Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-modeler) (WordPress plugin).
 
-**Status: 0.0.1, skeleton.** Settings page, parser switches and «Test connection» are built; no parser and no import yet. The draft concept (German) lives with the modeller:
+**Status: 0.0.1, not released.** Fetching (hourly WP-Cron and a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. **No shop parser yet**, so nothing is recognised; the IMAP part is tested only against a scripted server, not against Strato. The draft concept (German) lives with the modeller:
 [`docs/pakete/mail/konzept.md`](https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md).
 
 ## Idea in short
@@ -24,8 +24,16 @@ define( 'TAXMAIL_IMAP_USER', 'einkauf@example.com' );
 define( 'TAXMAIL_IMAP_PASSWORD', '...' );
 ```
 
-Then *Taxonomy Modeller → Mail import → Test connection*. It logs in, reports whether the server can move mails,
+Then *Taxonomy Modeller → Mail import settings → Test connection*. It logs in, reports whether the server can move mails,
 and creates the target folders that are missing.
+
+## Use
+
+*Taxonomy Modeller → Mail import* lists every open proposal with its items. Untick what should not go into the
+model, then **Take** (writes the order and the ticked items in one act) or **Discard**. The mail then moves to the
+«Importiert» or «Verworfen» folder. Mails no parser knows go to «Nicht erkannt» right away.
+
+Target nodes and fields are ids in the option `taxmail_targets` (defaults: fambach.net, measured 2026-10-20).
 
 ## Extending
 
