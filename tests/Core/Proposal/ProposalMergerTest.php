@@ -41,6 +41,19 @@ final class ProposalMergerTest extends TestCase
         self::assertTrue(WonAuctionMatch::matches($won, 'other', '2024-11-21', 'eBay 05-1 · Konvolut Elektro PC Teile'));
     }
 
+    public function testInvoiceWithArticleNumberWinsOverAcceptedOffer(): void
+    {
+        $offer = new OrderProposal('Ebay', 'ohne-Nr:etzala:Terratec TT1816-N v1...', ProposalKind::Invoice, '2025-02-23', 'EUR',
+            [new ProposalLine('Terratec TT1816-N v1...', 1.0, '16')], null, null, 'etzala');
+        $invoice = new OrderProposal('Ebay', 'ohne-Nr:315973194490', ProposalKind::Invoice, '2025-02-24', 'EUR',
+            [new ProposalLine('Terratec TT1816-N v1.0 16 BIT ISA PnP Soundkarte Retro', 1.0, '16', '315973194490')], null, '20.95');
+
+        $merged = ProposalMerger::merge([$offer, $invoice]);
+
+        self::assertTrue(WonAuctionMatch::matches($offer, null, $invoice->orderDate, $invoice->lines[0]->title));
+        self::assertSame(['315973194490', '20.95', 'etzala'], [$merged->lines[0]->articleNumber, $merged->total, $merged->counterparty]);
+    }
+
     public function testWithoutConfirmationTheItemsAreUnited(): void
     {
         $a = new OrderProposal('AliExpress', '1', ProposalKind::Other, '2026-10-20', 'EUR', [new ProposalLine('WCH-LinkE', 1.0)], null, '9.76');

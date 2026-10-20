@@ -287,7 +287,12 @@ final class Ebay implements OrderMailParser
 
         if (str_starts_with($subject, 'Ihre Rechnung für den eBay-Kauf')
             && preg_match('/\n(\d{12})\n(.+)\n(\d+)\n(EUR [\d.,]+)\n(EUR [\d.,]+)/u', "\n" . implode("\n", $mail->lines()), $match) === 1) {
-            return $this->invoice($mail, $match[1], $match[2], (float) $match[3], Text::money($match[4])[0], $match[1], null,
+            $price = Text::money($match[4])[0];
+            $lineTotal = Text::money($match[5])[0];
+            // The number column is not always the quantity; price and line total say how many were bought.
+            $quantity = $price !== null && $price > 0 && $lineTotal !== null ? max(1.0, round($lineTotal / $price)) : (float) $match[3];
+
+            return $this->invoice($mail, $match[1], $match[2], $quantity, $price, $match[1], null,
                 Text::money(Text::after($mail->lines(), 'Gesamt:'))[0]);
         }
 

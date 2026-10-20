@@ -102,25 +102,25 @@ final class ProposalTable
             $groups[$key][] = $row;
         }
 
-        // A won auction without order number joins the open order it belongs to, if that came by mail too.
-        foreach ($groups as $key => $rows) {
-            if (! str_starts_with((string) $rows[0]['order_number'], 'ohne-Nr:') || count($rows) !== 1) {
+        // A won auction without order number joins the open order it belongs to, if that came by mail too: an order
+        // with a number first, else another mail without one about the same purchase (offer accepted, then invoice).
+        foreach (array_keys($groups) as $key) {
+            if (! isset($groups[$key]) || count($groups[$key]) !== 1 || ! str_starts_with((string) $groups[$key][0]['order_number'], 'ohne-Nr:')) {
                 continue;
             }
 
-            $won = OrderProposal::fromArray((array) json_decode((string) $rows[0]['proposal'], true));
+            $row = $groups[$key][0];
+            $won = OrderProposal::fromArray((array) json_decode((string) $row['proposal'], true));
+            $candidates = array_filter($groups, static fn (array $others, string $otherKey): bool => $otherKey !== $key
+                && mb_strtolower((string) $others[0]['platform']) === mb_strtolower($won->platform), ARRAY_FILTER_USE_BOTH);
+            uksort($candidates, static fn (string $a, string $b): int => [str_contains($a, '|ohne-nr:'), $a] <=> [str_contains($b, '|ohne-nr:'), $b]);
 
-            foreach ($groups as $otherKey => $others) {
-                if ($otherKey === $key || str_starts_with((string) $others[0]['order_number'], 'ohne-Nr:')
-                    || mb_strtolower((string) $others[0]['platform']) !== mb_strtolower($won->platform)) {
-                    continue;
-                }
-
+            foreach ($candidates as $otherKey => $others) {
                 $other = OrderProposal::fromArray((array) json_decode((string) $others[0]['proposal'], true));
                 $titles = implode(' ', array_map(static fn ($line): string => $line->title, $other->lines));
 
                 if (WonAuctionMatch::matches($won, $other->counterparty, $other->orderDate ?? substr((string) $others[0]['received_at'], 0, 10), $titles)) {
-                    $groups[$otherKey][] = $rows[0];
+                    $groups[$otherKey][] = $row;
                     unset($groups[$key]);
                     break;
                 }

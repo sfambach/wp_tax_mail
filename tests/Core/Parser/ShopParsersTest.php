@@ -75,6 +75,13 @@ final class ShopParsersTest extends TestCase
         self::assertSame(['invoice', 'ohne-Nr:334455667788', '24.8'], [$order['kind'], $order['order_number'], $order['total']]);
     }
 
+    public function testEbayInvoiceQuantityFollowsLineTotal(): void
+    {
+        $order = self::read('e8');
+
+        self::assertSame([1.0, '16'], [$order['lines'][0]['quantity'], $order['lines'][0]['unit_price']]);
+    }
+
     public function testReicheltConfirmation(): void
     {
         $order = self::read('r1');

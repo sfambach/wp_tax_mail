@@ -14,7 +14,8 @@ final class ProposalMerger
     public static function merge(array $proposals): OrderProposal
     {
         // Confirmation first, then by how much each knows, so `first non-empty` picks the best source.
-        usort($proposals, static fn (OrderProposal $a, OrderProposal $b): int => [self::rank($a), -count($a->lines)] <=> [self::rank($b), -count($b->lines)]);
+        usort($proposals, static fn (OrderProposal $a, OrderProposal $b): int => [self::rank($a), -count($a->lines), -self::articleNumbers($a)]
+            <=> [self::rank($b), -count($b->lines), -self::articleNumbers($b)]);
         $first = static function (callable $field) use ($proposals): mixed {
             foreach ($proposals as $proposal) {
                 $value = $field($proposal);
@@ -61,6 +62,12 @@ final class ProposalMerger
             ProposalKind::Delivered => 3,
             default                => 4,
         };
+    }
+
+    /** An invoice names the article number and the full title; a won-auction mail cuts the title short. */
+    private static function articleNumbers(OrderProposal $proposal): int
+    {
+        return count(array_filter($proposal->lines, static fn (ProposalLine $line): bool => $line->articleNumber !== null && $line->articleNumber !== ''));
     }
 
     /** @param list<OrderProposal> $proposals */
