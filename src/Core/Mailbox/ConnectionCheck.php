@@ -25,6 +25,7 @@ final class ConnectionCheck
         $existing = $client->folders();
         $created = [];
         $present = [];
+        $subscribe = [];
 
         foreach ($this->folders->targets() as $folder) {
             $onServer = FolderPlan::onServer($folder, $delimiter);
@@ -38,13 +39,19 @@ final class ConnectionCheck
                     if ($depth === count($parents)) {
                         $present[] = $path;
                     }
-                    continue;
+                } else {
+                    $client->createFolder($path);
+                    $existing[] = $path;
+                    $created[] = $path;
                 }
 
-                $client->createFolder($path);
-                $existing[] = $path;
-                $created[] = $path;
+                $subscribe[$path] = true;
             }
+        }
+
+        // Subscribing again is harmless, so every test also repairs folders created before 0.0.3.
+        foreach (array_keys($subscribe) as $path) {
+            $client->subscribe($path);
         }
 
         $inbox = $client->select($this->folders->inbox);

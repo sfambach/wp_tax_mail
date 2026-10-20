@@ -126,6 +126,20 @@ final class SettingsScreen
             . get_submit_button(__('Test connection', 'taxmail'), 'secondary', 'submit', false)
             . '</form>';
 
+        $html .= '<h2>' . esc_html__('Backlog', 'taxmail') . '</h2><p>'
+            . esc_html__('Checks the mails from before the starting point: a mail whose order is in the model already moves to «Imported»; all others stay in the inbox, without a proposal. Each click works for about 20 seconds; click again until nothing is left.', 'taxmail')
+            . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
+            . '<input type="hidden" name="action" value="taxmail_backlog">' . wp_nonce_field('taxmail_backlog', '_wpnonce', true, false)
+            . get_submit_button(__('Sort backlog', 'taxmail'), 'secondary', 'submit', false)
+            . '</form>';
+
+        $html .= '<h2>' . esc_html__('Start over', 'taxmail') . '</h2><p>'
+            . esc_html__('Moves the mails in «Not recognised» and «Discarded» back to the inbox, forgets every proposal not taken over, and from then on reads only mails that arrive later. Taken-over orders and the «Imported» folder stay.', 'taxmail')
+            . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
+            . '<input type="hidden" name="action" value="taxmail_restart">' . wp_nonce_field('taxmail_restart', '_wpnonce', true, false)
+            . get_submit_button(__('Start over from now', 'taxmail'), 'secondary', 'submit', false, ['onclick' => "return confirm(this.form.previousElementSibling.textContent)"])
+            . '</form>';
+
         return $html;
     }
 

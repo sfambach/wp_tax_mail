@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.2';
+    public const VERSION     = '0.0.3';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -55,6 +55,8 @@ final class Plugin
         add_action('admin_post_taxmail_save', $plugin->handleSave(...));
         add_action('admin_post_taxmail_check', $plugin->handleCheck(...));
         add_action('admin_post_taxmail_fetch', $plugin->handleFetch(...));
+        add_action('admin_post_taxmail_restart', $plugin->handleRestart(...));
+        add_action('admin_post_taxmail_backlog', $plugin->handleBacklog(...));
         add_action('admin_post_taxmail_take', $plugin->handleTake(...));
         add_action('admin_post_taxmail_discard', $plugin->handleDiscard(...));
     }
@@ -170,6 +172,52 @@ final class Plugin
         } catch (ImapException $failure) {
             /* translators: %s: the server's answer */
             $this->notice(sprintf(__('Fetching failed: %s', 'taxmail'), $failure->getMessage()));
+        }
+
+        $this->back(self::PAGE, []);
+    }
+
+    public function handleRestart(): void
+    {
+        $this->guard('taxmail_restart');
+
+        try {
+            $counts = (new Mailbox(Settings::load()))->restartFromNow();
+            $this->notice(sprintf(
+                /* translators: 1: mails moved back to the inbox, 2: proposals forgotten */
+                __('Started over: %1$d mails back in the inbox, %2$d proposals forgotten. From now on only new mails are read.', 'taxmail'),
+                $counts['returned'],
+                $counts['forgotten']
+            ));
+        } catch (ImapException $failure) {
+            /* translators: %s: the server's answer */
+            $this->notice(sprintf(__('Starting over failed: %s', 'taxmail'), $failure->getMessage()));
+        }
+
+        $this->back(self::PAGE, []);
+    }
+
+    public function handleBacklog(): void
+    {
+        $this->guard('taxmail_backlog');
+
+        if (! ModelGateway::available()) {
+            $this->notice(__('The Taxonomy Modeller is not active — the backlog cannot be compared with the model.', 'taxmail'));
+            $this->back(self::PAGE, []);
+        }
+
+        try {
+            $counts = (new Mailbox(Settings::load()))->sortBacklog(new ModelGateway(Targets::load()));
+            $this->notice(sprintf(
+                /* translators: 1: mails checked, 2: moved to «Importiert», 3: still to check */
+                __('Backlog: %1$d mails checked, %2$d already in the model and moved to «Imported», %3$d still to check.', 'taxmail'),
+                $counts['checked'],
+                $counts['moved'],
+                $counts['remaining']
+            ));
+        } catch (ImapException $failure) {
+            /* translators: %s: the server's answer */
+            $this->notice(sprintf(__('Sorting the backlog failed: %s', 'taxmail'), $failure->getMessage()));
         }
 
         $this->back(self::PAGE, []);

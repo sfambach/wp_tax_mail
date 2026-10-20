@@ -102,6 +102,12 @@ final class ImapClient
         $this->command('CREATE ' . self::quote(self::encodeFolderName($name)));
     }
 
+    /** Mail programs list only subscribed folders; without this the Taxmod folders stay invisible there. */
+    public function subscribe(string $name): void
+    {
+        $this->command('SUBSCRIBE ' . self::quote(self::encodeFolderName($name)));
+    }
+
     public function select(string $folder): MailboxStatus
     {
         $count = 0;

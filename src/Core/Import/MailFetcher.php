@@ -41,10 +41,16 @@ final class MailFetcher
         $results = [];
 
         foreach (array_slice($client->uidsAfter($lastSeenUid), 0, $limit) as $uid) {
-            $results[] = $this->read($this->mime->parse($uid, $client->fetchRaw($uid)));
+            $results[] = $this->fetchOne($client, $uid);
         }
 
         return $results;
+    }
+
+    /** One mail by UID, for walks that choose their own UIDs (the backlog sort). */
+    public function fetchOne(ImapClient $client, int $uid): FetchedMail
+    {
+        return $this->read($this->mime->parse($uid, $client->fetchRaw($uid)));
     }
 
     private function read(MailMessage $mail): FetchedMail

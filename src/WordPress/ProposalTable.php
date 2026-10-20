@@ -55,6 +55,14 @@ final class ProposalTable
         ), ARRAY_A) ?: [];
     }
 
+    /** Forgets every row that was not taken over, so those mails count as unseen again; returns how many went. */
+    public function forgetUntaken(): int
+    {
+        global $wpdb;
+
+        return (int) $wpdb->query($wpdb->prepare('DELETE FROM ' . Schema::table() . ' WHERE status <> %s', self::IMPORTED));
+    }
+
     /** @return array<string, int> status => count */
     public function counts(): array
     {
