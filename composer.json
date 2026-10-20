@@ -1,0 +1,30 @@
+{
+    "name": "sfambach/wp-tax-mail",
+    "description": "Taxmod Mail — imports order mails into the Taxonomy Modeller as proposals.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "TaxMail\\Core\\": "src/Core/",
+            "TaxMail\\WordPress\\": "src/WordPress/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "TaxMail\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}
