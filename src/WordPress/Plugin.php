@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.17';
+    public const VERSION     = '0.0.18';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -60,6 +60,7 @@ final class Plugin
         add_action('admin_post_taxmail_backlog', $plugin->handleBacklog(...));
         add_action('admin_post_taxmail_take', $plugin->handleTake(...));
         add_action('admin_post_taxmail_discard', $plugin->handleDiscard(...));
+        add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
     }
 
     public function activate(): void
@@ -139,7 +140,12 @@ final class Plugin
                 }
 
                 $model = ModelGateway::available() ? new ModelGateway(Targets::load()) : null;
-                print (new ReviewScreen(new ProposalTable(), $model))->render($notices);
+                try {
+                    print (new ReviewScreen(new ProposalTable(), $model))->render($notices);
+                } catch (\Throwable $failure) {
+                    print '<div class="wrap"><div class="notice notice-error"><p>' . esc_html(sprintf('%s: %s (%s:%d)', $failure::class,
+                        $failure->getMessage(), basename($failure->getFile()), $failure->getLine())) . '</p></div></div>';
+                }
             }
         );
 
@@ -472,6 +478,27 @@ final class Plugin
             (string) $row['subject'],
             current_time('Y-m-d')
         );
+    }
+
+    /**
+     * WordPress's «critical error» page names nothing, and the server log is not his to read: for an administrator, a
+     * fatal error on one of this plugin's screens is spelled out on that page.
+     *
+     * @param array{type?: int, message?: string, file?: string, line?: int} $error
+     */
+    public static function explainFatal(string $message, array $error): string
+    {
+        // Read-only look at which screen died; nothing is acted on.
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        $action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
+
+        if (! str_starts_with($page, self::PAGE) && ! str_starts_with($action, 'taxmail_')
+            || ! function_exists('current_user_can') || ! current_user_can('manage_options')) {
+            return $message;
+        }
+
+        return $message . '<p><code>' . esc_html(sprintf('%s (%s:%d)', strtok((string) ($error['message'] ?? ''), "\n"),
+            basename((string) ($error['file'] ?? '')), (int) ($error['line'] ?? 0))) . '</code></p>';
     }
 
     /**
