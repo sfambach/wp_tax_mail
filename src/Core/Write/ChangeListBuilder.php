@@ -30,9 +30,10 @@ final class ChangeListBuilder
     /**
      * @param list<int> $pickedLines indexes into $proposal->lines
      * @param string $originNote one sentence on where the data came from
+     * @param string|null $receivedDate Y-m-d, when a delivery mail of the same order is taken over with it
      * @return list<array<string, mixed>> `mixed` because values nest by field kind
      */
-    public function newOrder(OrderProposal $proposal, array $pickedLines, string $originNote): array
+    public function newOrder(OrderProposal $proposal, array $pickedLines, string $originNote, ?string $receivedDate = null): array
     {
         if ($pickedLines === []) {
             throw new WriteException('no item picked');
@@ -51,6 +52,7 @@ final class ChangeListBuilder
             $this->target->orderField('fees')         => $this->amount('fees', $proposal->fees, $currency, true),
             $this->target->orderField('total')        => $this->amount('total', $proposal->total, $currency, true),
             $this->target->orderField('tracking')     => $proposal->trackingNumbers === [] ? null : ['values' => $proposal->trackingNumbers],
+            $this->target->orderField('received_at')  => $receivedDate,
         ]);
 
         $changes = [['op' => 'create_record', 'node' => $this->target->ordersNode, 'ref' => 'o']];

@@ -48,7 +48,8 @@ final class AliExpress implements OrderMailParser
         }
 
         $total = Text::after($lines, 'Bestellsumme');
-        $kind = str_contains($mail->subject, 'Bestätigung') ? ProposalKind::Ordered : ProposalKind::Other;
+        // «Bestellauftrag bestätigt» is the order confirmation; «auf Bestätigung wird gewartet» only says it is on its way.
+        $kind = str_contains($mail->subject, 'bestätigt') ? ProposalKind::Ordered : ProposalKind::Other;
 
         return new OrderProposal($this->shopName(), $match[1], $kind, $mail->date?->format('Y-m-d'), 'EUR', $items->lines(),
             null, $total === null ? null : Text::decimal(Text::money($total)[0]));

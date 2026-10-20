@@ -24,6 +24,12 @@ final class ProposalTable
             return null;
         }
 
+        // A forwarded copy has its own Message-ID but is the same mail: same order, same kind, same original date.
+        if ($fetched->proposal !== null && $fetched->proposal->orderNumber !== '' && $mail->date !== null
+            && $this->hasSameMail($fetched->proposal->platform, $fetched->proposal->orderNumber, $fetched->proposal->kind->value, $mail->date->setTimezone(wp_timezone())->format('Y-m-d H:i:s'))) {
+            return null;
+        }
+
         $wpdb->insert(Schema::table(), [
             'message_id'   => mb_substr($mail->messageId, 0, 191),
             'mail_uid'     => $mail->uid,
@@ -78,6 +84,35 @@ final class ProposalTable
         return (int) $wpdb->query($wpdb->prepare('DELETE FROM ' . Schema::table() . ' WHERE status <> %s', self::IMPORTED));
     }
 
+    /**
+     * Open rows grouped by order: every mail about one platform and order number is one group, so the review page
+     * shows one order once. Rows without an order number stay alone.
+     *
+     * @return list<non-empty-list<array<string, mixed>>> `mixed` because these are database rows
+     */
+    public function openGroups(): array
+    {
+        $groups = [];
+
+        foreach ($this->open() as $row) {
+            $number = trim((string) ($row['order_number'] ?? ''));
+            $key = $number === '' ? 'row:' . $row['id'] : mb_strtolower(trim((string) $row['platform'])) . '|' . mb_strtolower($number);
+            $groups[$key][] = $row;
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param list<int> $ids
+     * @return list<array<string, mixed>> the open rows among $ids
+     */
+    public function openRows(array $ids): array
+    {
+        return array_values(array_filter(array_map(fn (int $id): ?array => $this->find($id), $ids),
+            static fn (?array $row): bool => $row !== null && $row['status'] === self::OPEN));
+    }
+
     /** @return array<string, int> status => count */
     public function counts(): array
     {
@@ -111,6 +146,19 @@ final class ProposalTable
             'written'    => $written === [] ? null : wp_json_encode($written),
             'handled_at' => current_time('mysql'),
         ], ['id' => $id]);
+    }
+
+    private function hasSameMail(string $platform, string $orderNumber, string $kind, string $receivedAt): bool
+    {
+        global $wpdb;
+
+        return (bool) $wpdb->get_var($wpdb->prepare(
+            'SELECT 1 FROM ' . Schema::table() . ' WHERE platform = %s AND order_number = %s AND kind = %s AND received_at = %s LIMIT 1',
+            $platform,
+            $orderNumber,
+            $kind,
+            $receivedAt
+        ));
     }
 
     private function hasMessage(string $messageId): bool

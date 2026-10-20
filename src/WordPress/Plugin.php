@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.8';
+    public const VERSION     = '0.0.9';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -260,10 +260,13 @@ final class Plugin
 
     public function handleTake(): void
     {
-        $row = $this->reviewedRow();
-        $proposal = OrderProposal::fromArray((array) json_decode((string) $row['proposal'], true));
+        $rows = $this->reviewedRows();
+        $proposal = ReviewScreen::merged($rows);
         $model = new ModelGateway(Targets::load());
         $builder = new ChangeListBuilder(Targets::load());
+        $delivered = array_values(array_filter($rows, static fn (array $row): bool => $row['kind'] === ProposalKind::Delivered->value));
+        $receivedDate = $delivered === [] ? null : substr((string) ($delivered[0]['received_at'] ?? current_time('mysql')), 0, 10);
+        $shipped = array_filter($rows, static fn (array $row): bool => $row['kind'] === ProposalKind::Shipped->value) !== [];
 
         try {
             $existing = $model->findOrder($proposal->platform, $proposal->orderNumber);
@@ -272,15 +275,16 @@ final class Plugin
                 throw new WriteException($existing->get_error_message());
             }
 
-            $changes = match (true) {
-                $existing === null && $proposal->lines !== []
-                    => $builder->newOrder($proposal, $this->pickedLines(count($proposal->lines)), self::originNote($row, $proposal)),
-                $existing !== null && $proposal->kind === ProposalKind::Shipped
-                    => $builder->shipped($existing, $proposal->trackingNumbers),
-                $existing !== null && $proposal->kind === ProposalKind::Delivered
-                    => $builder->delivered($existing, substr((string) ($row['received_at'] ?? current_time('mysql')), 0, 10)),
-                default => throw new WriteException(__('this mail cannot be taken over', 'taxmail')),
-            };
+            if ($existing === null && $proposal->lines !== []) {
+                $changes = $builder->newOrder($proposal, $this->pickedLines(count($proposal->lines)), self::originNote($rows[0], $proposal), $receivedDate);
+            } elseif ($existing !== null && ($shipped || $receivedDate !== null)) {
+                $changes = [
+                    ...($shipped ? $builder->shipped($existing, $proposal->trackingNumbers) : []),
+                    ...($receivedDate !== null ? $builder->delivered($existing, $receivedDate) : []),
+                ];
+            } else {
+                throw new WriteException(__('this mail cannot be taken over', 'taxmail'));
+            }
         } catch (WriteException $refusal) {
             /* translators: %s: reason */
             $this->notice(sprintf(__('Not taken: %s', 'taxmail'), $refusal->getMessage()));
@@ -295,22 +299,27 @@ final class Plugin
             $this->back(self::PAGE, []);
         }
 
-        (new ProposalTable())->close((int) $row['id'], ProposalTable::IMPORTED, $written);
+        foreach ($rows as $row) {
+            (new ProposalTable())->close((int) $row['id'], ProposalTable::IMPORTED, $written);
+            $this->moveMail($row, 'imported');
+        }
+
         $this->notice(sprintf(
             /* translators: 1: platform, 2: order number */
             __('%1$s %2$s taken over.', 'taxmail'),
             $proposal->platform,
             $proposal->orderNumber
         ));
-        $this->moveMail($row, 'imported');
         $this->back(self::PAGE, []);
     }
 
     public function handleDiscard(): void
     {
-        $row = $this->reviewedRow();
-        (new ProposalTable())->close((int) $row['id'], ProposalTable::DISCARDED);
-        $this->moveMail($row, 'discarded');
+        foreach ($this->reviewedRows() as $row) {
+            (new ProposalTable())->close((int) $row['id'], ProposalTable::DISCARDED);
+            $this->moveMail($row, 'discarded');
+        }
+
         $this->back(self::PAGE, []);
     }
 
@@ -399,21 +408,21 @@ final class Plugin
      *
      * @return array<string, mixed>
      */
-    private function reviewedRow(): array
+    /** @return non-empty-list<array<string, mixed>> the open rows of the reviewed order; `mixed` because these are database rows */
+    private function reviewedRows(): array
     {
-        $id = isset($_POST['proposal']) ? absint(wp_unslash($_POST['proposal'])) : 0;
-        $this->guard('taxmail_review_' . $id);
-        $row = (new ProposalTable())->find($id);
+        $ids = isset($_POST['proposals']) ? array_values(array_filter(array_map('absint', explode(',', (string) wp_unslash($_POST['proposals']))))) : [];
+        $this->guard(ReviewScreen::nonceAction($ids));
+        $rows = (new ProposalTable())->openRows($ids);
 
-        if ($row === null || $row['status'] !== ProposalTable::OPEN) {
+        if ($rows === [] || count($rows) !== count($ids)) {
             $this->notice(__('This proposal was already handled.', 'taxmail'));
             $this->back(self::PAGE, []);
         }
 
-        return $row;
+        return $rows;
     }
 
-    /** @return list<int> */
     private function pickedLines(int $lineCount): array
     {
         $posted = isset($_POST['lines']) && is_array($_POST['lines']) ? array_map('absint', wp_unslash($_POST['lines'])) : [];

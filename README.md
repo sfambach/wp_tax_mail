@@ -2,7 +2,7 @@
 
 Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-modeler) (WordPress plugin).
 
-**Status: 0.0.8.** Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for eBay, Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; the eBay parser switches itself off while tax_ebay is active. Connected to the Strato mailbox since 2026-10-20; the parsers are not yet checked on real mails. German translation in `languages/`. The draft concept (German) lives with the modeller:
+**Status: 0.0.9.** Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for eBay, Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; the eBay parser switches itself off while tax_ebay is active. Connected to the Strato mailbox since 2026-10-20; the parsers are not yet checked on real mails. German translation in `languages/`. The draft concept (German) lives with the modeller:
 [`docs/pakete/mail/konzept.md`](https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md).
 
 ## Idea in short
@@ -40,7 +40,8 @@ inbox, forgets untaken proposals and sets the starting point anew. Testing the c
 folders, so mail programs show them. **Fetch order** (review page) reads the inbox mails that mention one order
 number, also from before the starting point.
 
-*Taxonomy Modeller → Mail import* lists every open proposal with its items. Untick what should not go into the
+*Taxonomy Modeller → Mail import* lists every open order once — all its mails (confirmation, shipping, delivery,
+forwarded copies) folded into one proposal, the confirmation's items and amounts first. Untick what should not go into the
 model, then **Take** (writes the order and the ticked items in one act) or **Discard**. The mail then moves to the
 «Importiert» or «Verworfen» folder. Mails no parser knows go to «Nicht erkannt» right away.
 

@@ -2,7 +2,9 @@
 
 namespace TaxMail\WordPress;
 
+use TaxMail\Core\Proposal\OrderProposal;
 use TaxMail\Core\Proposal\ProposalKind;
+use TaxMail\Core\Proposal\ProposalMerger;
 use TaxMail\Core\Write\ExistingOrder;
 use WP_Error;
 
@@ -32,14 +34,14 @@ final class ReviewScreen
         }
 
         $html .= $this->summary() . $this->fetchButton();
-        $rows = $this->table->open();
+        $groups = $this->table->openGroups();
 
-        if ($rows === []) {
+        if ($groups === []) {
             return $html . '<p>' . esc_html__('Nothing to review.', 'taxmail') . '</p></div>';
         }
 
-        foreach ($rows as $row) {
-            $html .= $this->proposal($row);
+        foreach ($groups as $rows) {
+            $html .= $this->proposal($rows);
         }
 
         return $html . '</div>';
@@ -71,20 +73,26 @@ final class ReviewScreen
             . get_submit_button(__('Fetch order', 'taxmail'), 'secondary', 'submit', false) . '</form>';
     }
 
-    /** @param array<string, mixed> $row */
-    private function proposal(array $row): string
+    /** @param non-empty-list<array<string, mixed>> $rows every open mail of one order */
+    private function proposal(array $rows): string
     {
-        $data = json_decode((string) $row['proposal'], true);
-        $data = is_array($data) ? $data : [];
-        $kind = ProposalKind::tryFrom((string) ($data['kind'] ?? '')) ?? ProposalKind::Ordered;
-        $existing = $this->model?->findOrder((string) ($data['platform'] ?? ''), (string) ($data['order_number'] ?? ''));
-        $id = (int) $row['id'];
+        $proposal = self::merged($rows);
+        $data = $proposal->toArray();
+        $kinds = array_unique(array_map(static fn (array $row): string => self::kindLabel(ProposalKind::tryFrom((string) $row['kind']) ?? ProposalKind::Other), $rows));
+        $kind = $proposal->kind;
+        $existing = $this->model?->findOrder($proposal->platform, $proposal->orderNumber);
+        $ids = array_map(static fn (array $row): int => (int) $row['id'], $rows);
 
         $html = '<div class="postbox" style="padding:0 12px 12px;max-width:60em"><h2>'
-            . esc_html(sprintf('%s %s', $data['platform'] ?? '', $data['order_number'] ?? ''))
-            . ' <small>· ' . esc_html(self::kindLabel($kind)) . '</small></h2>'
-            . '<p>' . esc_html((string) $row['subject']) . '<br><small>' . esc_html((string) $row['sender'])
-            . ' · ' . esc_html((string) ($row['received_at'] ?? '')) . '</small></p>';
+            . esc_html(sprintf('%s %s', $proposal->platform, $proposal->orderNumber))
+            . ' <small>· ' . esc_html(implode(', ', $kinds)) . '</small></h2><p>';
+
+        foreach ($rows as $row) {
+            $html .= esc_html((string) $row['subject']) . '<br><small>' . esc_html((string) $row['sender'])
+                . ' · ' . esc_html((string) ($row['received_at'] ?? '')) . '</small><br>';
+        }
+
+        $html .= '</p>';
 
         if ($existing instanceof WP_Error) {
             $html .= '<p class="notice notice-error inline">' . esc_html($existing->get_error_message()) . '</p>';
@@ -98,16 +106,17 @@ final class ReviewScreen
         }
 
         $html .= '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
-            . '<input type="hidden" name="proposal" value="' . esc_attr((string) $id) . '">'
-            . wp_nonce_field('taxmail_review_' . $id, '_wpnonce', true, false);
+            . '<input type="hidden" name="proposals" value="' . esc_attr(implode(',', $ids)) . '">'
+            . wp_nonce_field(self::nonceAction($ids), '_wpnonce', true, false);
 
         $lines = (array) ($data['lines'] ?? []);
         // Any mail with items can bring an order the model does not have yet — a shipping mail (JLCPCB, Mouser), an
         // AliExpress status mail, an eBay invoice — as the Python importer did; sales and refunds cannot.
         $asNewOrder = ! $existing instanceof ExistingOrder && $lines !== []
             && in_array($kind, [ProposalKind::Ordered, ProposalKind::Shipped, ProposalKind::Delivered, ProposalKind::Other, ProposalKind::Invoice], true);
+        $rowKinds = array_map(static fn (array $row): ?ProposalKind => ProposalKind::tryFrom((string) $row['kind']), $rows);
         $canTake = $this->model !== null && ($asNewOrder || (
-            $existing instanceof ExistingOrder && in_array($kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)
+            $existing instanceof ExistingOrder && array_intersect([ProposalKind::Shipped, ProposalKind::Delivered], $rowKinds) !== []
         ));
 
         if ($asNewOrder) {
@@ -133,6 +142,23 @@ final class ReviewScreen
         }
 
         return $html . '<button class="button" name="action" value="taxmail_discard">' . esc_html__('Discard', 'taxmail') . '</button></form></div>';
+    }
+
+    /** @param non-empty-list<array<string, mixed>> $rows */
+    public static function merged(array $rows): OrderProposal
+    {
+        return ProposalMerger::merge(array_map(
+            static fn (array $row): OrderProposal => OrderProposal::fromArray((array) json_decode((string) $row['proposal'], true)),
+            $rows
+        ));
+    }
+
+    /** @param list<int> $ids */
+    public static function nonceAction(array $ids): string
+    {
+        sort($ids);
+
+        return 'taxmail_review_' . implode('-', $ids);
     }
 
     /** @param array<int, mixed> $lines decoded JSON rows */
