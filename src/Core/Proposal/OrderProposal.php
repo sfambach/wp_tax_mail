@@ -12,6 +12,8 @@ final class OrderProposal
      * @param list<ProposalLine> $lines
      * @param string|null $shippingCost decimal string
      * @param string|null $total decimal string
+     * @param string|null $fees decimal string — platform fees on a sale
+     * @param list<string> $trackingNumbers
      */
     public function __construct(
         public readonly string $platform,
@@ -23,6 +25,9 @@ final class OrderProposal
         public readonly ?string $shippingCost = null,
         public readonly ?string $total = null,
         public readonly ?string $counterparty = null,
+        public readonly ?string $fees = null,
+        public readonly ?string $shippedDate = null,
+        public readonly array $trackingNumbers = [],
     ) {
     }
 
@@ -39,6 +44,9 @@ final class OrderProposal
             'shipping_cost' => $this->shippingCost,
             'total'         => $this->total,
             'counterparty'  => $this->counterparty,
+            'fees'          => $this->fees,
+            'shipped_date'  => $this->shippedDate,
+            'tracking'      => $this->trackingNumbers,
         ];
     }
 }

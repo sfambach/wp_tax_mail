@@ -7,7 +7,10 @@ namespace TaxMail\Core\Proposal;
  */
 final class ProposalLine
 {
-    /** @param string|null $unitPrice decimal string, never float — money keeps its digits */
+    /**
+     * @param string|null $unitPrice decimal string, never float — money keeps its digits
+     * @param string|null $articleNumber the shop's number for the item: Reichelt/Mouser article number, eBay item id
+     */
     public function __construct(
         public readonly string $title,
         public readonly float $quantity,
