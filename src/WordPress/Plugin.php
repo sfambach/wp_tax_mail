@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.18';
+    public const VERSION     = '0.0.19';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';

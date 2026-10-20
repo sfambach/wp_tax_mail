@@ -122,7 +122,7 @@ final class ReviewScreen
             && in_array($kind, [ProposalKind::Ordered, ProposalKind::Shipped, ProposalKind::Delivered, ProposalKind::Other, ProposalKind::Invoice], true);
         $rowKinds = array_map(static fn (array $row): ?ProposalKind => ProposalKind::tryFrom((string) $row['kind']), $rows);
         $canTake = $this->model !== null && ($asNewOrder || (
-            $existing instanceof ExistingOrder && array_intersect([ProposalKind::Shipped, ProposalKind::Delivered], $rowKinds) !== []
+            $existing instanceof ExistingOrder && (in_array(ProposalKind::Shipped, $rowKinds, true) || in_array(ProposalKind::Delivered, $rowKinds, true))
         ));
 
         if ($asNewOrder) {
