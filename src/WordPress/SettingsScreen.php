@@ -11,7 +11,7 @@ final class SettingsScreen
     public function render(Settings $settings, ?array $check): string
     {
         $registry = Plugin::registry($settings);
-        $html = '<div class="wrap"><h1>' . esc_html__('Mail import', 'taxmail') . '</h1>';
+        $html = '<div class="wrap"><h1>' . esc_html__('Mail import', 'taxmail') . ' <small>' . esc_html(Plugin::VERSION) . '</small></h1>';
 
         if (isset($_GET['saved'])) {
             $html .= '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'taxmail') . '</p></div>';

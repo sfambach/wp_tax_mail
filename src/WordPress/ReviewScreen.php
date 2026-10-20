@@ -23,7 +23,7 @@ final class ReviewScreen
     /** @param list<string> $notices already escaped */
     public function render(array $notices): string
     {
-        $html = '<div class="wrap"><h1>' . esc_html__('Review incoming orders', 'taxmail') . '</h1>';
+        $html = '<div class="wrap"><h1>' . esc_html__('Review incoming orders', 'taxmail') . ' <small>' . esc_html(Plugin::VERSION) . '</small></h1>';
 
         foreach ($notices as $notice) {
             $html .= '<div class="notice notice-info"><p>' . $notice . '</p></div>';
