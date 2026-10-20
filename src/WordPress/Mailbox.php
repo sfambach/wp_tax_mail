@@ -191,6 +191,50 @@ final class Mailbox
         }
     }
 
+    /**
+     * Reads the inbox mails that mention $text — typically an order number — whatever the starting point says, and
+     * stores them like a fetch would. Nothing is moved: a mail no parser knows simply stays in the inbox.
+     *
+     * @return array{found: int, stored: int, proposed: int, unrecognised: int, failed: int}
+     * @throws ImapException
+     */
+    public function fetchMatching(string $text): array
+    {
+        if (get_transient(self::LOCK)) {
+            throw new ImapException('another fetch is running');
+        }
+
+        set_transient(self::LOCK, 1, 5 * MINUTE_IN_SECONDS);
+        $client = $this->connect();
+
+        try {
+            $status = $client->select($this->settings->folders->inbox);
+            $uids = array_slice($client->uidsContaining($text), 0, 20);
+            $fetcher = new MailFetcher(Plugin::registry($this->settings));
+            $counts = ['found' => count($uids), 'stored' => 0, 'proposed' => 0, 'unrecognised' => 0, 'failed' => 0];
+
+            foreach ($uids as $uid) {
+                $result = $fetcher->fetchOne($client, $uid);
+                $this->table->forgetUnread($result->mail->messageId);
+
+                if ($this->table->add($result, $status->uidValidity) !== null) {
+                    $counts['stored']++;
+                }
+
+                match ($result->outcome) {
+                    FetchOutcome::Proposed, FetchOutcome::NoReceipt => $counts['proposed']++,
+                    FetchOutcome::Unrecognised                      => $counts['unrecognised']++,
+                    default                                         => $counts['failed']++,
+                };
+            }
+
+            return $counts;
+        } finally {
+            $client->logout();
+            delete_transient(self::LOCK);
+        }
+    }
+
     /** Remembers the inbox as read up to now, without reading anything. */
     private function startAt(ImapClient $client): void
     {

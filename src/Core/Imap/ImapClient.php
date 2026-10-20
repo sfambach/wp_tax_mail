@@ -102,6 +102,31 @@ final class ImapClient
         $this->command('CREATE ' . self::quote(self::encodeFolderName($name)));
     }
 
+    /**
+     * UIDs of the mails in the selected folder whose header or body contains $text — the server searches, so a single
+     * order can be found among thousands of mails without fetching them.
+     *
+     * @return list<int>
+     */
+    public function uidsContaining(string $text): array
+    {
+        $uids = [];
+
+        foreach ($this->command('UID SEARCH TEXT ' . self::quote($text)) as $response) {
+            if (str_starts_with(strtoupper($response->text), 'SEARCH')) {
+                foreach (preg_split('/\s+/', trim(substr($response->text, 6))) ?: [] as $uid) {
+                    if ($uid !== '') {
+                        $uids[] = (int) $uid;
+                    }
+                }
+            }
+        }
+
+        sort($uids);
+
+        return $uids;
+    }
+
     /** Mail programs list only subscribed folders; without this the Taxmod folders stay invisible there. */
     public function subscribe(string $name): void
     {

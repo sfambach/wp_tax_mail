@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.3';
+    public const VERSION     = '0.0.4';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -56,6 +56,7 @@ final class Plugin
         add_action('admin_post_taxmail_check', $plugin->handleCheck(...));
         add_action('admin_post_taxmail_fetch', $plugin->handleFetch(...));
         add_action('admin_post_taxmail_restart', $plugin->handleRestart(...));
+        add_action('admin_post_taxmail_fetch_matching', $plugin->handleFetchMatching(...));
         add_action('admin_post_taxmail_backlog', $plugin->handleBacklog(...));
         add_action('admin_post_taxmail_take', $plugin->handleTake(...));
         add_action('admin_post_taxmail_discard', $plugin->handleDiscard(...));
@@ -168,6 +169,37 @@ final class Plugin
                 $counts['fetched'],
                 $counts['stored'],
                 $counts['moved']
+            ));
+        } catch (ImapException $failure) {
+            /* translators: %s: the server's answer */
+            $this->notice(sprintf(__('Fetching failed: %s', 'taxmail'), $failure->getMessage()));
+        }
+
+        $this->back(self::PAGE, []);
+    }
+
+    public function handleFetchMatching(): void
+    {
+        $this->guard('taxmail_fetch_matching');
+        // Order numbers are letters, digits and dashes; anything else is dropped so the IMAP search string stays plain.
+        $text = isset($_POST['order_number']) ? preg_replace('/[^A-Za-z0-9-]/', '', (string) wp_unslash($_POST['order_number'])) : '';
+
+        if (strlen((string) $text) < 4) {
+            $this->notice(__('Enter an order number (at least 4 characters).', 'taxmail'));
+            $this->back(self::PAGE, []);
+        }
+
+        try {
+            $counts = (new Mailbox(Settings::load()))->fetchMatching((string) $text);
+            $this->notice(sprintf(
+                /* translators: 1: order number, 2: mails found, 3: new rows, 4: read by a parser, 5: no parser, 6: parser failed */
+                __('%1$s: %2$d mails found, %3$d new; %4$d read, %5$d not recognised, %6$d failed.', 'taxmail'),
+                $text,
+                $counts['found'],
+                $counts['stored'],
+                $counts['proposed'],
+                $counts['unrecognised'],
+                $counts['failed']
             ));
         } catch (ImapException $failure) {
             /* translators: %s: the server's answer */

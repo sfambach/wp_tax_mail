@@ -63,7 +63,12 @@ final class ReviewScreen
     {
         return '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:1em">'
             . '<input type="hidden" name="action" value="taxmail_fetch">' . wp_nonce_field('taxmail_fetch', '_wpnonce', true, false)
-            . get_submit_button(__('Fetch mails now', 'taxmail'), 'secondary', 'submit', false) . '</form>';
+            . get_submit_button(__('Fetch mails now', 'taxmail'), 'secondary', 'submit', false) . '</form>'
+            . '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:1em">'
+            . '<input type="hidden" name="action" value="taxmail_fetch_matching">' . wp_nonce_field('taxmail_fetch_matching', '_wpnonce', true, false)
+            . '<label for="taxmail-order-number">' . esc_html__('Fetch one order by its number, also from before the starting point:', 'taxmail') . '</label> '
+            . '<input type="text" id="taxmail-order-number" name="order_number" class="regular-text" style="width:16em"> '
+            . get_submit_button(__('Fetch order', 'taxmail'), 'secondary', 'submit', false) . '</form>';
     }
 
     /** @param array<string, mixed> $row */

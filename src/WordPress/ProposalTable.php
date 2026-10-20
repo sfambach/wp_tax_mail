@@ -55,6 +55,21 @@ final class ProposalTable
         ), ARRAY_A) ?: [];
     }
 
+    /** Forgets the row of a mail no parser could read, so a later attempt (parser switched on, parser fixed) can store it. */
+    public function forgetUnread(string $messageId): void
+    {
+        global $wpdb;
+
+        if ($messageId !== '') {
+            $wpdb->query($wpdb->prepare(
+                'DELETE FROM ' . Schema::table() . ' WHERE message_id = %s AND status IN (%s, %s)',
+                mb_substr($messageId, 0, 191),
+                FetchOutcome::Unrecognised->value,
+                FetchOutcome::Failed->value
+            ));
+        }
+    }
+
     /** Forgets every row that was not taken over, so those mails count as unseen again; returns how many went. */
     public function forgetUntaken(): int
     {
