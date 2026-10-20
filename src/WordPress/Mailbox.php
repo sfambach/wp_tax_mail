@@ -9,6 +9,7 @@ use TaxMail\Core\Import\FetchOutcome;
 use TaxMail\Core\Import\MailFetcher;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Proposal\ProposalKind;
+use TaxMail\Core\Proposal\WonAuctionMatch;
 use TaxMail\Core\Write\ExistingOrder;
 
 /**
@@ -180,7 +181,8 @@ final class Mailbox
                 $proposal = $result->proposal;
 
                 if ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->orderNumber !== ''
-                    && $model->findOrder($proposal->platform, $proposal->orderNumber) instanceof ExistingOrder) {
+                    && ($model->findOrder($proposal->platform, $proposal->orderNumber) instanceof ExistingOrder
+                        || (WonAuctionMatch::isWithoutNumber($proposal) && $model->findWonAuction($proposal) instanceof ExistingOrder))) {
                     $client->move($uid, $target);
                     $moved++;
                 } elseif ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->lines !== []

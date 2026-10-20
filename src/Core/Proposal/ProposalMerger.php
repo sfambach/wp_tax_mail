@@ -32,7 +32,9 @@ final class ProposalMerger
         $lines = $priced !== [] ? $priced[0]->lines : self::union($proposals);
         $tracking = array_values(array_unique(array_merge(...array_map(static fn (OrderProposal $p): array => $p->trackingNumbers, $proposals))));
         $kinds = array_map(static fn (OrderProposal $p): ProposalKind => $p->kind, $proposals);
-        $base = $proposals[0];
+        // A won auction's stand-in key gives way to the real order number of a mail it was grouped with.
+        $numbered = array_values(array_filter($proposals, static fn (OrderProposal $p): bool => ! WonAuctionMatch::isWithoutNumber($p)));
+        $base = $numbered[0] ?? $proposals[0];
 
         return new OrderProposal(
             $base->platform,

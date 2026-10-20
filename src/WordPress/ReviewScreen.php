@@ -5,6 +5,7 @@ namespace TaxMail\WordPress;
 use TaxMail\Core\Proposal\OrderProposal;
 use TaxMail\Core\Proposal\ProposalKind;
 use TaxMail\Core\Proposal\ProposalMerger;
+use TaxMail\Core\Proposal\WonAuctionMatch;
 use TaxMail\Core\Write\ExistingOrder;
 use WP_Error;
 
@@ -81,6 +82,11 @@ final class ReviewScreen
         $kinds = array_unique(array_map(static fn (array $row): string => self::kindLabel(ProposalKind::tryFrom((string) $row['kind']) ?? ProposalKind::Other), $rows));
         $kind = $proposal->kind;
         $existing = $this->model?->findOrder($proposal->platform, $proposal->orderNumber);
+
+        if ($existing === null && WonAuctionMatch::isWithoutNumber($proposal)) {
+            $existing = $this->model?->findWonAuction($proposal);
+        }
+
         $ids = array_map(static fn (array $row): int => (int) $row['id'], $rows);
 
         $html = '<div class="postbox" style="padding:0 12px 12px;max-width:60em"><h2>'

@@ -4,6 +4,8 @@ namespace TaxMail\WordPress;
 
 use TaxMail\Core\Import\FetchedMail;
 use TaxMail\Core\Import\FetchOutcome;
+use TaxMail\Core\Proposal\OrderProposal;
+use TaxMail\Core\Proposal\WonAuctionMatch;
 
 /**
  * Reads and writes the proposal rows. Every query is prepared (CD-6).
@@ -98,6 +100,31 @@ final class ProposalTable
             $number = trim((string) ($row['order_number'] ?? ''));
             $key = $number === '' ? 'row:' . $row['id'] : mb_strtolower(trim((string) $row['platform'])) . '|' . mb_strtolower($number);
             $groups[$key][] = $row;
+        }
+
+        // A won auction without order number joins the open order it belongs to, if that came by mail too.
+        foreach ($groups as $key => $rows) {
+            if (! str_starts_with((string) $rows[0]['order_number'], 'ohne-Nr:') || count($rows) !== 1) {
+                continue;
+            }
+
+            $won = OrderProposal::fromArray((array) json_decode((string) $rows[0]['proposal'], true));
+
+            foreach ($groups as $otherKey => $others) {
+                if ($otherKey === $key || str_starts_with((string) $others[0]['order_number'], 'ohne-Nr:')
+                    || mb_strtolower((string) $others[0]['platform']) !== mb_strtolower($won->platform)) {
+                    continue;
+                }
+
+                $other = OrderProposal::fromArray((array) json_decode((string) $others[0]['proposal'], true));
+                $titles = implode(' ', array_map(static fn ($line): string => $line->title, $other->lines));
+
+                if (WonAuctionMatch::matches($won, $other->counterparty, $other->orderDate ?? substr((string) $others[0]['received_at'], 0, 10), $titles)) {
+                    $groups[$otherKey][] = $rows[0];
+                    unset($groups[$key]);
+                    break;
+                }
+            }
         }
 
         return array_values($groups);

@@ -2,6 +2,8 @@
 
 namespace TaxMail\WordPress;
 
+use TaxMail\Core\Proposal\OrderProposal;
+use TaxMail\Core\Proposal\WonAuctionMatch;
 use TaxMail\Core\Write\ExistingOrder;
 use TaxMail\Core\Write\TargetModel;
 use WP_Error;
@@ -14,6 +16,9 @@ final class ModelGateway
 {
     /** @var array<string, ExistingOrder>|null platform|number (lower case) => order */
     private ?array $orders = null;
+
+    /** @var array<string, array{0: string, 1: ?string, 2: ?string, 3: string}> platform, merchant, ordered, title per order key */
+    private array $facts = [];
 
     public function __construct(private readonly TargetModel $target)
     {
@@ -56,6 +61,28 @@ final class ModelGateway
         return $this->orders[self::key($platform, $orderNumber)] ?? null;
     }
 
+    /** The order a won auction or invoice without order number belongs to, by seller or title within 14 days. */
+    public function findWonAuction(OrderProposal $won): ExistingOrder|WP_Error|null
+    {
+        if ($this->orders === null) {
+            $loaded = $this->loadOrders();
+
+            if ($loaded instanceof WP_Error) {
+                return $loaded;
+            }
+
+            $this->orders = $loaded;
+        }
+
+        foreach ($this->facts as $key => [$platform, $merchant, $ordered, $title]) {
+            if (mb_strtolower($platform) === mb_strtolower($won->platform) && WonAuctionMatch::matches($won, $merchant, $ordered, $title)) {
+                return $this->orders[$key];
+            }
+        }
+
+        return null;
+    }
+
     /** @return array<string, ExistingOrder>|WP_Error */
     private function loadOrders(): array|WP_Error
     {
@@ -69,13 +96,20 @@ final class ModelGateway
         $numberField = $this->target->orderField('order_number');
         $trackingField = $this->target->orderField('tracking');
         $receivedField = $this->target->orderField('received_at');
+        $merchantField = $this->target->orderField('merchant');
+        $orderedField = $this->target->orderField('ordered_at');
+        $titleField = $this->target->orderField('title');
         $orders = [];
+        $this->facts = [];
 
         foreach ((array) ($node['records'] ?? []) as $record) {
             $platform = '';
             $number = '';
             $tracking = [];
             $received = null;
+            $merchant = null;
+            $ordered = null;
+            $title = '';
 
             foreach ((array) ($record['values'] ?? []) as $value) {
                 match ((int) $value['relation_id']) {
@@ -83,12 +117,16 @@ final class ModelGateway
                     $numberField   => $number = (string) $value['value'],
                     $trackingField => $tracking[] = (string) $value['value'],
                     $receivedField => $received = (string) $value['value'],
+                    $merchantField => $merchant = (string) $value['value'],
+                    $orderedField  => $ordered = (string) $value['value'],
+                    $titleField    => $title .= ' ' . (string) $value['value'],
                     default        => null,
                 };
             }
 
             if ($number !== '') {
                 $orders[self::key($platform, $number)] = new ExistingOrder((int) $record['id'], $tracking, $received);
+                $this->facts[self::key($platform, $number)] = [$platform, $merchant, $ordered, $title];
             }
         }
 
