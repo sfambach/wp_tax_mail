@@ -31,5 +31,7 @@ eml('e4',E,'Bestellung bestätigt: 2 Artikel',
 eml('e5',E,'Sparen Sie 20 % Rabatt auf Elektronik',['Angebote','Bestellnummer:','00-00000-00000'])
 eml('e6',E,'Ihre Rechnung für den eBay-Kauf',['Rechnung','334455667788','Atari 2600 Joystick','1','EUR 19,90','EUR 19,90','Gesamt:','EUR 24,80'])
 eml('e8',E,'Ihre Rechnung für den eBay-Kauf: Terratec TT1816-N v1.0 16 BIT ISA PnP Soundkarte Retro (315973194490#)',['Rechnung','315973194490','Terratec TT1816-N v1.0 16 BIT ISA PnP Soundkarte Retro','2','EUR 16,00','EUR 16,00','Gesamt:','EUR 20,95'])
+eml('e9',E,'Ein Käufer möchte einen Kauf abbrechen',['Abbruchanfrage','greaseweazle 4.1, USB Floppy Disk Controller','Bestellnummer:','24-13651-27152','Preis:','EUR 25,00'])
+eml('e10',E,'Sie haben einen Kauf abgebrochen',['Abgebrochen','greaseweazle 4.1, USB Floppy Disk Controller','Bestellnummer:','24-13651-27152'])
 eml('e7',E,'Ihr Käufer hat eine Anfrage wegen eines nicht erhaltenen Artikels geöffnet: Anfrage 5388597203',
     ['Anfrage','Arduino FDC - Ein Floppy disk Controller aufsatz für den Arduino NUR Platine','Bestellnummer:','24-15238-03470','Käufer:','someone'])

@@ -49,7 +49,8 @@ final class Ebay implements OrderMailParser
 
         // Mails about his own sales (a buyer's request, case or return) carry «Bestellnummer:» like a purchase; read as
         // one they would offer his sold item as a new purchase.
-        if (preg_match('/Ihr Käufer|Käufer hat|an den Käufer|Käufer.*(Anfrage|Rückgabe|Fall)|Ihren Verkauf|Sie haben verkauft/u', $mail->subject) === 1) {
+        // «Sie haben einen Kauf abgebrochen» is the seller's confirmation of a buyer's cancellation request.
+        if (preg_match('/Ihr Käufer|Ein Käufer|Käufer hat|Käufer möchte|an den Käufer|Käufer.*(Anfrage|Rückgabe|Fall)|Ihren Verkauf|Sie haben verkauft|Sie haben einen Kauf abgebrochen/u', $mail->subject) === 1) {
             return $this->aboutOwnSale($mail);
         }
 

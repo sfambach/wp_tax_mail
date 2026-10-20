@@ -78,6 +78,20 @@ final class ProposalTable
         }
     }
 
+    /** A mail read again by a newer parser replaces its untaken proposal, whatever the new reading says. */
+    public function forgetOpen(string $messageId): void
+    {
+        global $wpdb;
+
+        if ($messageId !== '') {
+            $wpdb->query($wpdb->prepare(
+                'DELETE FROM ' . Schema::table() . ' WHERE message_id = %s AND status = %s',
+                mb_substr($messageId, 0, 191),
+                self::OPEN
+            ));
+        }
+    }
+
     /** Forgets every row that was not taken over, so those mails count as unseen again; returns how many went. */
     public function forgetUntaken(): int
     {

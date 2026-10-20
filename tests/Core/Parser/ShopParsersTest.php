@@ -82,6 +82,15 @@ final class ShopParsersTest extends TestCase
         self::assertSame([1.0, '16'], [$order['lines'][0]['quantity'], $order['lines'][0]['unit_price']]);
     }
 
+    public function testCancellationOfOwnSaleIsNoPurchase(): void
+    {
+        foreach (['e9', 'e10'] as $fixture) {
+            $order = self::read($fixture);
+
+            self::assertSame(['sold', '24-13651-27152', []], [$order['kind'], $order['order_number'], $order['lines']]);
+        }
+    }
+
     public function testReicheltConfirmation(): void
     {
         $order = self::read('r1');

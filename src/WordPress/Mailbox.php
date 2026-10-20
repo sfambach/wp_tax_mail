@@ -179,6 +179,7 @@ final class Mailbox
 
                 $result = $fetcher->fetchOne($client, $uid);
                 $proposal = $result->proposal;
+                $this->table->forgetOpen($result->mail->messageId);
 
                 if ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->orderNumber !== ''
                     && ($model->findOrder($proposal->platform, $proposal->orderNumber) instanceof ExistingOrder
