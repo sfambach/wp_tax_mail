@@ -23,7 +23,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.16';
+    public const VERSION     = '0.0.17';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -234,6 +234,7 @@ final class Plugin
     public function handleBacklog(): void
     {
         $this->guard('taxmail_backlog');
+        $this->reportFatal(__('Sorting the backlog failed: %s', 'taxmail'));
 
         if (! ModelGateway::available()) {
             $this->notice(__('The Taxonomy Modeller is not active — the backlog cannot be compared with the model.', 'taxmail'));
@@ -471,6 +472,29 @@ final class Plugin
             (string) $row['subject'],
             current_time('Y-m-d')
         );
+    }
+
+    /**
+     * A fatal error (memory, time limit) cannot be caught; WordPress then shows only «critical error» and the server
+     * log is not his to read. Leaves the message for the next page view instead.
+     *
+     * @param string $format translated, with one %s for the error
+     */
+    private function reportFatal(string $format): void
+    {
+        $started = microtime(true);
+
+        register_shutdown_function(function () use ($format, $started): void {
+            $error = error_get_last();
+
+            if ($error === null || ! in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
+                return;
+            }
+
+            $this->notice(sprintf($format, sprintf('%s (%s:%d; %.1f s, %d MB)', strtok($error['message'], "\n"), basename($error['file']),
+                $error['line'], microtime(true) - $started, intdiv(memory_get_peak_usage(true), 1048576))));
+            delete_transient(Mailbox::LOCK);
+        });
     }
 
     private function notice(string $text): void

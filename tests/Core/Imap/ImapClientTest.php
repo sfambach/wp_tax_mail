@@ -16,7 +16,7 @@ final class ImapClientTest extends TestCase
         $raw = (new ImapClient($stream))->fetchRaw(42);
 
         self::assertSame($mail, $raw);
-        self::assertSame(['A1 UID FETCH 42 (BODY.PEEK[])'], $stream->written);
+        self::assertSame(['A1 UID FETCH 42 (BODY.PEEK[]<0.2000000>)'], $stream->written);
     }
 
     public function testUidsAfterDropsTheHighestUidBelowTheRange(): void

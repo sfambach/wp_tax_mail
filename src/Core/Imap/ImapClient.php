@@ -190,9 +190,12 @@ final class ImapClient
     }
 
     /** The whole mail as the server stores it; PEEK keeps it unread. */
+    /** Order text sits at the start; a scanned invoice or photo attached behind it must not exhaust the memory limit. */
+    private const MAX_MAIL_BYTES = 2_000_000;
+
     public function fetchRaw(int $uid): string
     {
-        foreach ($this->command(sprintf('UID FETCH %d (BODY.PEEK[])', $uid)) as $response) {
+        foreach ($this->command(sprintf('UID FETCH %d (BODY.PEEK[]<0.%d>)', $uid, self::MAX_MAIL_BYTES)) as $response) {
             if ($response->literals !== [] && preg_match('/^\d+ FETCH /i', $response->text) === 1) {
                 return $response->literals[0];
             }

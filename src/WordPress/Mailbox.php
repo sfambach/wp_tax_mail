@@ -33,7 +33,7 @@ final class Mailbox
 
     /** Seconds one backlog click may run — Strato cuts long requests; the next click carries on. */
     private const BACKLOG_SECONDS = 20;
-    private const LOCK = 'taxmail_fetch_lock';
+    public const LOCK = 'taxmail_fetch_lock';
 
     /** Mails per run — keeps a run inside Strato's time limits; the rest comes with the next run or the button. */
     private const LIMIT = 60;
