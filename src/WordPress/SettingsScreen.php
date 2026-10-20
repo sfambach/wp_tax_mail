@@ -46,6 +46,20 @@ final class SettingsScreen
             $html .= '</tbody></table>';
         }
 
+        $html .= '<h2>' . esc_html__('Automatic fetch', 'taxmail') . '</h2><p><label for="taxmail-schedule">'
+            . esc_html__('Fetch new mails', 'taxmail') . '</label> <select id="taxmail-schedule" name="schedule">';
+
+        foreach ([
+            ''           => __('never (button only)', 'taxmail'),
+            'hourly'     => __('every hour', 'taxmail'),
+            'twicedaily' => __('twice a day', 'taxmail'),
+            'daily'      => __('once a day', 'taxmail'),
+        ] as $value => $label) {
+            $html .= '<option value="' . esc_attr($value) . '"' . selected($settings->schedule, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+
+        $html .= '</select></p>';
+
         $html .= '<h2>' . esc_html__('Folders', 'taxmail') . '</h2><table class="form-table" role="presentation">';
 
         foreach ([

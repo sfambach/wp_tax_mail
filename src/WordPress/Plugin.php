@@ -64,15 +64,20 @@ final class Plugin
         self::schedule();
     }
 
-    /** Once a day is enough; the button on the review page fetches on demand (his word, 2026-10-20). */
+    /** Daily unless he picks otherwise in the settings; the button fetches on demand (his word, 2026-10-20). */
     public static function schedule(): void
     {
-        if (wp_get_schedule(self::CRON_HOOK) === 'daily') {
+        $wanted = Settings::load()->schedule;
+
+        if ((wp_get_schedule(self::CRON_HOOK) ?: '') === $wanted) {
             return;
         }
 
         wp_clear_scheduled_hook(self::CRON_HOOK);
-        wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', self::CRON_HOOK);
+
+        if ($wanted !== '') {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, $wanted, self::CRON_HOOK);
+        }
     }
 
     /** WP-Cron runs without a user: it may fetch and store, never write to the model (that needs his pick anyway). */
@@ -232,12 +237,15 @@ final class Plugin
         $folder = static fn (string $key, string $fallback): string => self::folderName($folders[$key] ?? '', $fallback);
         $defaults = $settings->folders;
 
+        $schedule = isset($_POST['schedule']) ? sanitize_key(wp_unslash($_POST['schedule'])) : 'daily';
+
         (new Settings($parsers, new FolderPlan(
             $folder('inbox', $defaults->inbox),
             $folder('imported', $defaults->imported),
             $folder('discarded', $defaults->discarded),
             $folder('unrecognised', $defaults->unrecognised),
-        )))->save();
+        ), in_array($schedule, Settings::SCHEDULES, true) ? $schedule : 'daily'))->save();
+        self::schedule();
 
         $this->back(self::SETTINGS_PAGE, ['saved' => '1']);
     }

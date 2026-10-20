@@ -12,12 +12,16 @@ final class Settings
 {
     public const OPTION = 'taxmail_settings';
 
+    /** WP-Cron recurrences he can pick; '' switches the automatic fetch off (his word 2026-10-20: «einstellbar»). */
+    public const SCHEDULES = ['', 'hourly', 'twicedaily', 'daily'];
+
     /**
      * @param array<string, bool> $parsers
      */
     public function __construct(
         public readonly array $parsers,
         public readonly FolderPlan $folders,
+        public readonly string $schedule = 'daily',
     ) {
     }
 
@@ -35,7 +39,8 @@ final class Settings
                 (string) ($folders['imported'] ?? $defaults->imported),
                 (string) ($folders['discarded'] ?? $defaults->discarded),
                 (string) ($folders['unrecognised'] ?? $defaults->unrecognised),
-            )
+            ),
+            in_array($stored['schedule'] ?? 'daily', self::SCHEDULES, true) ? (string) ($stored['schedule'] ?? 'daily') : 'daily'
         );
     }
 
@@ -49,6 +54,7 @@ final class Settings
                 'discarded'    => $this->folders->discarded,
                 'unrecognised' => $this->folders->unrecognised,
             ],
+            'schedule' => $this->schedule,
         ], false);
     }
 
