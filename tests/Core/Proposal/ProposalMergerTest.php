@@ -54,6 +54,16 @@ final class ProposalMergerTest extends TestCase
         self::assertSame(['315973194490', '20.95', 'etzala'], [$merged->lines[0]->articleNumber, $merged->total, $merged->counterparty]);
     }
 
+    public function testOrderWithoutDateNeedsSellerAndTitle(): void
+    {
+        $won = new OrderProposal('Ebay', 'ohne-Nr:xenoux:Creative Sound Blast...', ProposalKind::Invoice, '2025-09-20', 'EUR',
+            [new ProposalLine('Creative Sound Blast...', 1.0, '85')], null, null, 'xenoux');
+
+        self::assertTrue(WonAuctionMatch::matches($won, 'xenoux', null, 'eBay 18-13590-39252 · Creative Sound Blaster 2.0 CT1350B'));
+        self::assertFalse(WonAuctionMatch::matches($won, 'someone', null, 'eBay 18-13590-39252 · Creative Sound Blaster 2.0 CT1350B'));
+        self::assertFalse(WonAuctionMatch::matches($won, 'xenoux', null, 'eBay 1 · Gravis Ultrasound'));
+    }
+
     public function testWithoutConfirmationTheItemsAreUnited(): void
     {
         $a = new OrderProposal('AliExpress', '1', ProposalKind::Other, '2026-10-20', 'EUR', [new ProposalLine('WCH-LinkE', 1.0)], null, '9.76');

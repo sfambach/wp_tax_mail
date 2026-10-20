@@ -22,21 +22,18 @@ final class WonAuctionMatch
      */
     public static function matches(OrderProposal $won, ?string $merchant, ?string $orderedDate, string $titles): bool
     {
-        if ($won->orderDate === null || $orderedDate === null || $orderedDate === '') {
-            return false;
-        }
-
-        $days = abs((int) round((strtotime(substr($orderedDate, 0, 10)) - strtotime(substr($won->orderDate, 0, 10))) / 86400));
-
-        if ($days > self::DAYS) {
-            return false;
-        }
-
         $sameSeller = $won->counterparty !== null && $merchant !== null && $merchant !== ''
             && mb_strtolower(trim($won->counterparty, ' …')) === mb_strtolower(trim($merchant, ' …'));
         $head = mb_strtolower(mb_substr(rtrim($won->lines[0]->title ?? '', '.… '), 0, 15));
         $sameTitle = $head !== '' && str_contains(mb_strtolower($titles), $head);
 
-        return $sameSeller || $sameTitle;
+        // Orders taken from a shipping mail carry no order date; without one, seller and title must both agree.
+        if ($won->orderDate === null || $orderedDate === null || $orderedDate === '') {
+            return $sameSeller && $sameTitle;
+        }
+
+        $days = abs((int) round((strtotime(substr($orderedDate, 0, 10)) - strtotime(substr($won->orderDate, 0, 10))) / 86400));
+
+        return $days <= self::DAYS && ($sameSeller || $sameTitle);
     }
 }
