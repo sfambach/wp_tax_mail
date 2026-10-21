@@ -14,7 +14,8 @@ final class SettingsScreen
     public function render(Settings $settings, ?array $check, string $inboxUrl): string
     {
         $registry = Plugin::registry($settings);
-        $html = '<h2>' . esc_html__('Mail import', 'taxmail') . ' <small>' . esc_html(Plugin::VERSION) . '</small></h2>';
+        // Title and version are drawn by the Configuration page (D-968).
+        $html = '';
         $failure = (string) get_option(MailSource::LAST_FAILURE, '');
 
         if ($failure !== '') {

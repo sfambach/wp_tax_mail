@@ -23,7 +23,6 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     'Look up the IMAP server of your mail provider, with SSL on port 993 — for Strato: imap.strato.de.' => 'Den IMAP-Server deines Mail-Anbieters heraussuchen, mit SSL auf Port 993 — bei Strato: imap.strato.de.',
     'Mail' => 'Mail',
     'Mail connections' => 'Mail-Anbindungen',
-    'Mail import' => 'Mail-Import',
     'Mailbox' => 'Postfach',
     'Mails' => 'Mails',
     'Most frequent senders in the inbox' => 'Häufigste Absender im Posteingang',

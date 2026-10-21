@@ -24,7 +24,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.1.2';
+    public const VERSION     = '0.1.3';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -93,16 +93,17 @@ final class Plugin
     public function registerTab(array $tabs): array
     {
         $tabs[self::TAB] = [
-            'title'  => __('Mail', 'taxmail'),
-            'render' => static function (): string {
+            'title'   => __('Mail', 'taxmail'),
+            'version' => self::VERSION,
+            'render'  => static function (): string {
                 $user = get_current_user_id();
                 $result = get_transient(self::CHECK_RESULT . $user);
                 delete_transient(self::CHECK_RESULT . $user);
 
                 return (new SettingsScreen())->render(Settings::load(), is_array($result) ? $result : null, admin_url('admin.php?page=' . InboxScreen::PAGE));
             },
-            'save'   => $this->save(...),
-            'guide'  => static fn (): string => SettingsScreen::guide(admin_url('admin.php?page=' . InboxScreen::PAGE)),
+            'save'    => $this->save(...),
+            'guide'   => static fn (): string => SettingsScreen::guide(admin_url('admin.php?page=' . InboxScreen::PAGE)),
         ];
 
         return $tabs;
