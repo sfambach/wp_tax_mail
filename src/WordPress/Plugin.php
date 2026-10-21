@@ -12,21 +12,22 @@ use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\ParserRegistry;
 use TaxMail\Core\Parser\ShippedParsers;
 use Taxmod\Core\Import\BacklogSource;
+use Taxmod\WordPress\Admin\SettingsScreen as ConfigurationScreen;
 use Taxmod\WordPress\Import\InboxScreen;
 use Taxmod\WordPress\Import\Sources;
 
 /**
- * The boundary: registers the mailbox as a source of the modeller's inbox (D-953) and keeps the settings page — account,
- * parsers, folders, sorting rules, the connection test. It wires WordPress to the core and decides nothing.
+ * The boundary: registers the mailbox as a source of the modeller's inbox (D-953) and its settings as the tab «Mail» of
+ * the modeller's Configuration page (D-945) — account, parsers, folders, sorting rules, the connection test. It wires WordPress to the core and decides nothing.
  *
  * @see https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md
  */
 final class Plugin
 {
-    public const VERSION     = '0.1.0';
+    public const VERSION     = '0.1.1';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
-    public const PAGE        = 'taxmail-settings';
+    public const TAB         = 'mail';
 
     /** Where the last connection test's outcome waits for the redirect — per user, ten minutes. */
     private const CHECK_RESULT = 'taxmail_check_';
@@ -64,8 +65,8 @@ final class Plugin
         add_action('init', static fn () => load_plugin_textdomain('taxmail', false, dirname(plugin_basename($file)) . '/languages'));
         add_action('admin_init', LegacyProposals::moveOnce(...));
         add_filter(Sources::FILTER, static fn (array $sources): array => [...$sources, new MailSource(Settings::load())]);
-        add_action('admin_menu', $plugin->registerMenu(...), 20);
-        add_action('admin_post_taxmail_save', $plugin->handleSave(...));
+        // After the modeller's own «Import» tab.
+        add_filter(ConfigurationScreen::TABS_FILTER, $plugin->registerTab(...), 20);
         add_action('admin_post_taxmail_check', $plugin->handleCheck(...));
         add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
         add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
@@ -85,44 +86,51 @@ final class Plugin
         return new ParserRegistry($parsers, $settings->parsers);
     }
 
-    public function registerMenu(): void
+    /**
+     * @param array<string, array<string, mixed>> $tabs
+     * @return array<string, array<string, mixed>>
+     */
+    public function registerTab(array $tabs): array
     {
-        add_submenu_page(
-            isset($GLOBALS['admin_page_hooks']['taxmod']) ? 'taxmod' : 'options-general.php',
-            __('Mail import settings', 'taxmail'),
-            __('Mail import settings', 'taxmail'),
-            self::CAPABILITY,
-            self::PAGE,
-            static function (): void {
+        $tabs[self::TAB] = [
+            'title'  => __('Mail', 'taxmail'),
+            'render' => static function (): string {
                 $user = get_current_user_id();
                 $result = get_transient(self::CHECK_RESULT . $user);
                 delete_transient(self::CHECK_RESULT . $user);
 
-                print (new SettingsScreen())->render(Settings::load(), is_array($result) ? $result : null, admin_url('admin.php?page=' . InboxScreen::PAGE));
-            }
-        );
+                return (new SettingsScreen())->render(Settings::load(), is_array($result) ? $result : null, admin_url('admin.php?page=' . InboxScreen::PAGE));
+            },
+            'save'   => $this->save(...),
+        ];
+
+        return $tabs;
     }
 
-    public function handleSave(): void
+    /**
+     * The Configuration page checked capability and nonce and unslashed the fields (D-945); this validates and
+     * sanitises them (CD-5).
+     *
+     * @param array<string, mixed> $post `mixed` because it is the posted form
+     */
+    public function save(array $post): void
     {
-        $this->guard('taxmail_save');
-
         $parsers = [];
-        $posted = isset($_POST['parsers']) && is_array($_POST['parsers']) ? wp_unslash($_POST['parsers']) : [];
+        $posted = isset($post['parsers']) && is_array($post['parsers']) ? $post['parsers'] : [];
         $settings = Settings::load();
 
         foreach (array_keys(self::registry($settings)->all()) as $key) {
             $parsers[$key] = isset($posted[$key]);
         }
 
-        $folders = isset($_POST['folders']) && is_array($_POST['folders']) ? wp_unslash($_POST['folders']) : [];
+        $folders = isset($post['folders']) && is_array($post['folders']) ? $post['folders'] : [];
         $folder = static fn (string $key, string $fallback): string => self::folderName($folders[$key] ?? '', $fallback);
         $defaults = $settings->folders;
 
-        $schedule = isset($_POST['schedule']) ? sanitize_key(wp_unslash($_POST['schedule'])) : 'daily';
+        $schedule = isset($post['schedule']) ? sanitize_key((string) $post['schedule']) : 'daily';
 
-        if (! Settings::accountInConfig() && isset($_POST['account']) && is_array($_POST['account'])) {
-            $account = wp_unslash($_POST['account']);
+        if (! Settings::accountInConfig() && isset($post['account']) && is_array($post['account'])) {
+            $account = $post['account'];
             $port = absint($account['port'] ?? 993);
             Settings::saveAccount(
                 sanitize_text_field((string) ($account['host'] ?? '')),
@@ -139,9 +147,7 @@ final class Plugin
             $folder('unrecognised', $defaults->unrecognised),
         ), in_array($schedule, Settings::SCHEDULES, true) ? $schedule : 'daily',
             // Each line is split on «|» by SortRules; sanitize_textarea_field keeps the line breaks.
-            SortRules::fromText(isset($_POST['rules']) ? sanitize_textarea_field(wp_unslash($_POST['rules'])) : '')))->save();
-
-        $this->back(self::PAGE, ['saved' => '1']);
+            SortRules::fromText(isset($post['rules']) ? sanitize_textarea_field((string) $post['rules']) : '')))->save();
     }
 
     /** Counts the senders in the inbox for the sorting rules (D-949); nothing is moved. */
@@ -156,7 +162,7 @@ final class Plugin
             set_transient(self::CHECK_RESULT . get_current_user_id(), ['ok' => false, 'error' => 'imap', 'detail' => $failure->getMessage()], 10 * MINUTE_IN_SECONDS);
         }
 
-        $this->back(self::PAGE, []);
+        $this->back();
     }
 
     public function handleCheck(): void
@@ -180,7 +186,7 @@ final class Plugin
         }
 
         set_transient(self::CHECK_RESULT . get_current_user_id(), $result, 10 * MINUTE_IN_SECONDS);
-        $this->back(self::PAGE, []);
+        $this->back();
     }
 
     /** CD-5, in this order: capability, then nonce. */
@@ -193,10 +199,10 @@ final class Plugin
         check_admin_referer($action);
     }
 
-    /** @param array<string, string> $arguments */
-    private function back(string $page, array $arguments): never
+    /** Back to the «Mail» tab of the Configuration page. */
+    private function back(): never
     {
-        wp_safe_redirect(add_query_arg($arguments, admin_url('admin.php?page=' . $page)));
+        wp_safe_redirect(admin_url('admin.php?page=taxmod-settings&tab=' . self::TAB));
         exit;
     }
 
@@ -209,10 +215,10 @@ final class Plugin
     public static function explainFatal(string $message, array $error): string
     {
         // Read-only look at which screen died; nothing is acted on.
-        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
         $action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
 
-        if (! str_starts_with($page, self::PAGE) && ! str_starts_with($action, 'taxmail_')
+        if ($tab !== self::TAB && ! str_starts_with($action, 'taxmail_')
             || ! function_exists('current_user_can') || ! current_user_can('manage_options')) {
             return $message;
         }

@@ -3,8 +3,10 @@
 namespace TaxMail\WordPress;
 
 /**
- * The settings page: mailbox, parsers on/off, schedule, sorting rules, folder names, and the connection test. Fetching,
- * the backlog, the search and starting over are buttons in the modeller's inbox (D-953). Returns its HTML (CD-8).
+ * The «Mail» tab on the modeller's Configuration page (D-945): mailbox, parsers on/off, schedule, sorting rules, folder
+ * names, and the connection test. The page wraps it in its form and adds the Save button; the two actions here are
+ * links, since a form cannot hold another. Fetching, the backlog, the search and starting over are buttons in the
+ * modeller's inbox (D-953). Returns its HTML (CD-8).
  */
 final class SettingsScreen
 {
@@ -12,12 +14,7 @@ final class SettingsScreen
     public function render(Settings $settings, ?array $check, string $inboxUrl): string
     {
         $registry = Plugin::registry($settings);
-        $html = '<div class="wrap"><h1>' . esc_html__('Mail import', 'taxmail') . ' <small>' . esc_html(Plugin::VERSION) . '</small></h1>';
-
-        if (isset($_GET['saved'])) {
-            $html .= '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'taxmail') . '</p></div>';
-        }
-
+        $html = '<h2>' . esc_html__('Mail import', 'taxmail') . ' <small>' . esc_html(Plugin::VERSION) . '</small></h2>';
         $failure = (string) get_option(MailSource::LAST_FAILURE, '');
 
         if ($failure !== '') {
@@ -32,10 +29,6 @@ final class SettingsScreen
         ) . '</p>';
 
         $html .= $this->connection($check);
-
-        $html .= '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
-        $html .= '<input type="hidden" name="action" value="taxmail_save">' . wp_nonce_field('taxmail_save', '_wpnonce', true, false);
-
         $html .= $this->account();
 
         $html .= '<h2>' . esc_html__('Mail connections', 'taxmail') . '</h2>';
@@ -83,9 +76,7 @@ final class SettingsScreen
                 . '<td><input type="text" class="regular-text" id="taxmail-folder-' . esc_attr($key) . '" name="folders[' . esc_attr($key) . ']" value="' . esc_attr($value) . '"></td></tr>';
         }
 
-        $html .= '</table>' . get_submit_button(__('Save', 'taxmail')) . '</form></div>';
-
-        return $html;
+        return $html . '</table>';
     }
 
     /** The sorting rules (D-949) as one line each, and beside them the senders counted in the inbox. */
@@ -158,19 +149,20 @@ final class SettingsScreen
             $html .= $check['ok'] ? $this->success($check) : $this->failure($check);
         }
 
-        $html .= '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
-            . '<input type="hidden" name="action" value="taxmail_check">' . wp_nonce_field('taxmail_check', '_wpnonce', true, false)
-            . get_submit_button(__('Test connection', 'taxmail'), 'secondary', 'submit', false)
-            . '</form>';
+        $html .= '<p>' . self::actionLink('taxmail_check', __('Test connection', 'taxmail')) . '</p>';
 
         $html .= '<h2>' . esc_html__('Senders', 'taxmail') . '</h2><p>'
             . esc_html__('Counts who sent the mails in the inbox, as a help for the sorting rules. Nothing is moved.', 'taxmail')
-            . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
-            . '<input type="hidden" name="action" value="taxmail_senders">' . wp_nonce_field('taxmail_senders', '_wpnonce', true, false)
-            . get_submit_button(__('Count senders', 'taxmail'), 'secondary', 'submit', false)
-            . '</form>';
+            . '</p><p>' . self::actionLink('taxmail_senders', __('Count senders', 'taxmail')) . '</p>';
 
         return $html;
+    }
+
+    /** A button-looking link to admin-post.php with its own nonce; it changes no setting, so unsaved fields stay unsaved. */
+    private static function actionLink(string $action, string $label): string
+    {
+        return '<a class="button button-secondary" href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=' . $action), $action)) . '">'
+            . esc_html($label) . '</a>';
     }
 
     /** @param array<string, mixed> $check */
