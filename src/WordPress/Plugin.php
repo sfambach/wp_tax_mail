@@ -7,6 +7,7 @@ use TaxMail\Core\Imap\ImapException;
 use TaxMail\Core\Imap\TlsSocketStream;
 use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
+use TaxMail\Core\Mailbox\SortRules;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\ParserRegistry;
 use TaxMail\Core\Parser\ShippedParsers;
@@ -23,13 +24,16 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.19';
+    public const VERSION     = '0.0.20';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
 
     /** Where the last connection test's outcome waits for the redirect — per user, ten minutes. */
     private const CHECK_RESULT = 'taxmail_check_';
+
+    /** The last sender count per user, shown beside the sorting rules. */
+    public const SENDERS = 'taxmail_senders_';
 
     public const SETTINGS_PAGE = 'taxmail-settings';
     public const CRON_HOOK     = 'taxmail_fetch_cron';
@@ -58,6 +62,7 @@ final class Plugin
         add_action('admin_post_taxmail_restart', $plugin->handleRestart(...));
         add_action('admin_post_taxmail_fetch_matching', $plugin->handleFetchMatching(...));
         add_action('admin_post_taxmail_backlog', $plugin->handleBacklog(...));
+        add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
         add_action('admin_post_taxmail_take', $plugin->handleTake(...));
         add_action('admin_post_taxmail_discard', $plugin->handleDiscard(...));
         add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
@@ -256,11 +261,12 @@ final class Plugin
         try {
             $counts = (new Mailbox(Settings::load()))->sortBacklog(new ModelGateway(Targets::load()));
             $this->notice(sprintf(
-                /* translators: 1: mails checked, 2: moved to «Importiert», 3: new proposals, 4: still to check */
-                __('Backlog: %1$d mails checked, %2$d already in the model and moved to «Imported», %3$d new proposals, %4$d still to check.', 'taxmail'),
+                /* translators: 1: mails checked, 2: moved to «Importiert», 3: new proposals, 4: sorted by rules, 5: still to check */
+                __('Backlog: %1$d mails checked, %2$d already in the model and moved to «Imported», %3$d new proposals, %4$d sorted into folders, %5$d still to check.', 'taxmail'),
                 $counts['checked'],
                 $counts['moved'],
                 $counts['stored'],
+                $counts['sorted'],
                 $counts['remaining']
             ));
 
@@ -384,10 +390,27 @@ final class Plugin
             $folder('imported', $defaults->imported),
             $folder('discarded', $defaults->discarded),
             $folder('unrecognised', $defaults->unrecognised),
-        ), in_array($schedule, Settings::SCHEDULES, true) ? $schedule : 'daily'))->save();
+        ), in_array($schedule, Settings::SCHEDULES, true) ? $schedule : 'daily',
+            // Each line is split on «|» by SortRules; sanitize_textarea_field keeps the line breaks.
+            SortRules::fromText(isset($_POST['rules']) ? sanitize_textarea_field(wp_unslash($_POST['rules'])) : '')))->save();
         self::schedule();
 
         $this->back(self::SETTINGS_PAGE, ['saved' => '1']);
+    }
+
+    /** Counts the senders in the inbox for the sorting rules (D-949); nothing is moved. */
+    public function handleSenders(): void
+    {
+        $this->guard('taxmail_senders');
+
+        try {
+            $senders = (new Mailbox(Settings::load()))->topSenders();
+            set_transient(self::SENDERS . get_current_user_id(), $senders, HOUR_IN_SECONDS);
+        } catch (ImapException $failure) {
+            set_transient(self::CHECK_RESULT . get_current_user_id(), ['ok' => false, 'error' => 'imap', 'detail' => $failure->getMessage()], 10 * MINUTE_IN_SECONDS);
+        }
+
+        $this->back(self::SETTINGS_PAGE, []);
     }
 
     public function handleCheck(): void
@@ -402,7 +425,8 @@ final class Plugin
             try {
                 $client = new ImapClient(new TlsSocketStream($credentials['host'], $credentials['port']));
                 $client->login($credentials['user'], $credentials['password']);
-                $result = ['ok' => true] + (new ConnectionCheck(Settings::load()->folders))->run($client);
+                $settings = Settings::load();
+                $result = ['ok' => true] + (new ConnectionCheck($settings->folders, $settings->rules->folders($settings->folders)))->run($client);
                 $client->logout();
             } catch (ImapException $failure) {
                 $result = ['ok' => false, 'error' => 'imap', 'detail' => $failure->getMessage()];

@@ -6,8 +6,12 @@ use TaxMail\Core\Imap\ImapClient;
 use TaxMail\Core\Imap\ImapException;
 use TaxMail\Core\Imap\TlsSocketStream;
 use TaxMail\Core\Import\FetchOutcome;
+use TaxMail\Core\Import\FetchedMail;
 use TaxMail\Core\Import\MailFetcher;
+use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
+use TaxMail\Core\Mailbox\SenderTally;
+use TaxMail\Core\Mailbox\SortRules;
 use TaxMail\Core\Proposal\ProposalKind;
 use TaxMail\Core\Proposal\WonAuctionMatch;
 use TaxMail\Core\Write\ExistingOrder;
@@ -138,7 +142,7 @@ final class Mailbox
      * already goes to «Importiert», a mail a parser reads otherwise becomes a proposal, everything else stays in the
      * inbox untouched (his word 2026-10-20: «alle mail nochmal parsen lassen und doppelte aussortieren»).
      *
-     * @return array{checked: int, moved: int, stored: int, remaining: int, failed: int, first_failure: ?string}
+     * @return array{checked: int, moved: int, stored: int, remaining: int, failed: int, first_failure: ?string, sorted: int}
      * @throws ImapException
      */
     public function sortBacklog(ModelGateway $model): array
@@ -178,6 +182,8 @@ final class Mailbox
             $failed = $crashed === null ? 0 : 1;
             $firstFailure = $crashed === null ? null : 'UID ' . $crashed . ': the last run stopped on this mail';
             $previous = $cursor;
+            $sortedAway = 0;
+            $this->ensureRuleFolders($client);
 
             foreach ($pending as $uid) {
                 if (microtime(true) - $started > self::BACKLOG_SECONDS) {
@@ -221,6 +227,9 @@ final class Mailbox
                     if ($this->table->add($result, $status->uidValidity) !== null) {
                         $stored++;
                     }
+                } elseif (($sorted = $this->sortTarget($result, null)) !== null) {
+                    $client->move($uid, FolderPlan::onServer($sorted, $client->delimiter()));
+                    $sortedAway++;
                 }
 
                 $checked++;
@@ -229,7 +238,7 @@ final class Mailbox
             }
 
             return ['checked' => $checked, 'moved' => $moved, 'stored' => $stored, 'remaining' => count($pending) - $checked,
-                'failed' => $failed, 'first_failure' => $firstFailure];
+                'failed' => $failed, 'first_failure' => $firstFailure, 'sorted' => $sortedAway];
         } finally {
             $client->logout();
             delete_transient(self::LOCK);
@@ -280,6 +289,62 @@ final class Mailbox
         }
     }
 
+    /**
+     * The most frequent senders in the inbox, for writing sorting rules (D-949).
+     *
+     * @return array<string, int> sender => mails
+     * @throws ImapException
+     */
+    public function topSenders(): array
+    {
+        $client = $this->connect();
+
+        try {
+            $status = $client->select($this->settings->folders->inbox);
+
+            return $status->messageCount === 0 ? [] : SenderTally::count($client->fromHeaders());
+        } finally {
+            $client->logout();
+        }
+    }
+
+    /**
+     * Where a mail goes that does not become an order proposal: his rules first (D-949), then the fixed rule that a
+     * shop's mail without an order — advertising, his own sales — is discarded. Null leaves it in the inbox.
+     */
+    private function sortTarget(FetchedMail $result, ?string $default): ?string
+    {
+        $proposal = $result->proposal;
+        $isOrder = $result->outcome === FetchOutcome::Proposed && $proposal !== null
+            && $proposal->kind !== ProposalKind::Sold && ($proposal->lines !== [] || $proposal->orderNumber !== '');
+
+        if ($isOrder) {
+            return null;
+        }
+
+        $ruled = $this->settings->rules->folderFor($result->mail->fromAddress, $result->mail->subject);
+
+        if ($ruled !== null) {
+            return SortRules::resolve($ruled, $this->settings->folders);
+        }
+
+        if ($result->outcome === FetchOutcome::NoReceipt || ($proposal !== null && $proposal->kind === ProposalKind::Sold)) {
+            return $this->settings->folders->discarded;
+        }
+
+        return $default;
+    }
+
+    /** A rule may name a folder of his own; it is created the first time it is needed. */
+    private function ensureRuleFolders(ImapClient $client): void
+    {
+        $folders = $this->settings->rules->folders($this->settings->folders);
+
+        if ($folders !== []) {
+            ConnectionCheck::ensureFolders($client, $folders);
+        }
+    }
+
     /** Remembers the inbox as read up to now, without reading anything. */
     private function startAt(ImapClient $client): void
     {
@@ -316,15 +381,19 @@ final class Mailbox
             $moved = 0;
             $canMove = $client->canMove();
 
+            $this->ensureRuleFolders($client);
+
             foreach ($fetched as $result) {
-                if ($this->table->add($result, $status->uidValidity) !== null) {
+                $folderKey = ProposalTable::folderFor($result->outcome);
+                $target = $this->sortTarget($result, $folderKey === null ? null : $this->folder($folderKey));
+
+                // A sale sorted away is no proposal; the rows of unread mails stay, the page counts them.
+                if (($target === null || $result->outcome !== FetchOutcome::Proposed) && $this->table->add($result, $status->uidValidity) !== null) {
                     $stored++;
                 }
 
-                $folderKey = ProposalTable::folderFor($result->outcome);
-
-                if ($folderKey !== null && $canMove) {
-                    $client->move($result->mail->uid, FolderPlan::onServer($this->folder($folderKey), $client->delimiter()));
+                if ($target !== null && $canMove) {
+                    $client->move($result->mail->uid, FolderPlan::onServer($target, $client->delimiter()));
                     $moved++;
                 }
 

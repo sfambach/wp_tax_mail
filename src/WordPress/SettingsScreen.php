@@ -62,6 +62,8 @@ final class SettingsScreen
 
         $html .= '</select></p>';
 
+        $html .= $this->rules($settings);
+
         $html .= '<h2>' . esc_html__('Folders', 'taxmail') . '</h2><table class="form-table" role="presentation">';
 
         foreach ([
@@ -75,6 +77,34 @@ final class SettingsScreen
         }
 
         $html .= '</table>' . get_submit_button(__('Save', 'taxmail')) . '</form></div>';
+
+        return $html;
+    }
+
+    /** The sorting rules (D-949) as one line each, and beside them the senders counted in the inbox. */
+    private function rules(Settings $settings): string
+    {
+        $html = '<h2>' . esc_html__('Sorting rules', 'taxmail') . '</h2><p>'
+            . esc_html__('One rule per line: sender | subject | folder. Sender and subject are pieces of text, one of them may stay empty. «Verworfen» and «Nicht erkannt» mean the folders below; any other name is a folder of your own, created when needed. Rules only sort mails that are no order; shop mails without an order (advertising, your own sales) go to «Verworfen» anyway. Nothing is ever deleted.', 'taxmail')
+            . '</p><p><label for="taxmail-rules" class="screen-reader-text">' . esc_html__('Sorting rules', 'taxmail') . '</label>'
+            . '<textarea id="taxmail-rules" name="rules" rows="8" class="large-text code" placeholder="newsletter@shop.example | | Verworfen&#10;| Ihr Paket | Taxmod/Versand">'
+            . esc_textarea($settings->rules->toText()) . '</textarea></p>';
+
+        $senders = get_transient(Plugin::SENDERS . get_current_user_id());
+
+        if (is_array($senders) && $senders !== []) {
+            $html .= '<details open><summary>' . esc_html__('Most frequent senders in the inbox', 'taxmail') . '</summary>'
+                . '<table class="widefat striped" style="max-width:40em"><thead><tr><th scope="col">' . esc_html__('Sender', 'taxmail')
+                . '</th><th scope="col">' . esc_html__('Mails', 'taxmail') . '</th><th scope="col">' . esc_html__('Rule', 'taxmail') . '</th></tr></thead><tbody>';
+
+            foreach ($senders as $sender => $count) {
+                $ruled = $settings->rules->folderFor((string) $sender, '');
+                $html .= '<tr><td><code>' . esc_html((string) $sender) . '</code></td><td>' . esc_html((string) $count) . '</td><td>'
+                    . esc_html($ruled ?? '') . '</td></tr>';
+            }
+
+            $html .= '</tbody></table></details>';
+        }
 
         return $html;
     }
@@ -127,11 +157,18 @@ final class SettingsScreen
             . '</form>';
 
         $html .= '<h2>' . esc_html__('Backlog', 'taxmail') . '</h2><p>'
-            . esc_html__('Reads the mails from before the starting point: a mail whose order is in the model already moves to «Imported», a mail a parser can read becomes a proposal, all others stay in the inbox. Each click works for about 20 seconds; click again until nothing is left.', 'taxmail')
+            . esc_html__('Reads the mails from before the starting point: a mail whose order is in the model already moves to «Imported», a mail a parser can read becomes a proposal, the sorting rules sort the rest, and what no rule names stays in the inbox. Each click works for about 20 seconds; click again until nothing is left.', 'taxmail')
             . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
             . '<input type="hidden" name="action" value="taxmail_backlog">' . wp_nonce_field('taxmail_backlog', '_wpnonce', true, false)
             . '<p><label><input type="checkbox" name="from_start" value="1"> ' . esc_html__('Start again from the oldest mail (after a parser was switched on or fixed)', 'taxmail') . '</label></p>'
             . get_submit_button(__('Sort backlog', 'taxmail'), 'secondary', 'submit', false)
+            . '</form>';
+
+        $html .= '<h2>' . esc_html__('Senders', 'taxmail') . '</h2><p>'
+            . esc_html__('Counts who sent the mails in the inbox, as a help for the sorting rules. Nothing is moved.', 'taxmail')
+            . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
+            . '<input type="hidden" name="action" value="taxmail_senders">' . wp_nonce_field('taxmail_senders', '_wpnonce', true, false)
+            . get_submit_button(__('Count senders', 'taxmail'), 'secondary', 'submit', false)
             . '</form>';
 
         $html .= '<h2>' . esc_html__('Start over', 'taxmail') . '</h2><p>'

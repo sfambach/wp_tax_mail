@@ -3,11 +3,13 @@
 namespace TaxMail\WordPress;
 
 use TaxMail\Core\Mailbox\FolderPlan;
+use TaxMail\Core\Mailbox\SortRule;
+use TaxMail\Core\Mailbox\SortRules;
 use TaxMail\Core\Secret\SecretBox;
 use TaxMail\Core\Secret\SecretException;
 
 /**
- * The module's settings in one option: which parsers are on, the folder names, the schedule. The mailbox account sits in
+ * The module's settings in one option: which parsers are on, the folder names, the schedule, the sorting rules. The mailbox account sits in
  * an option of its own with the password sealed (his word 2026-10-20: «ja verschlüsselt einbauen»); constants in
  * wp-config.php still win, for whoever prefers to keep it out of the database entirely.
  */
@@ -27,6 +29,7 @@ final class Settings
         public readonly array $parsers,
         public readonly FolderPlan $folders,
         public readonly string $schedule = 'daily',
+        public readonly SortRules $rules = new SortRules(),
     ) {
     }
 
@@ -45,7 +48,11 @@ final class Settings
                 (string) ($folders['discarded'] ?? $defaults->discarded),
                 (string) ($folders['unrecognised'] ?? $defaults->unrecognised),
             ),
-            in_array($stored['schedule'] ?? 'daily', self::SCHEDULES, true) ? (string) ($stored['schedule'] ?? 'daily') : 'daily'
+            in_array($stored['schedule'] ?? 'daily', self::SCHEDULES, true) ? (string) ($stored['schedule'] ?? 'daily') : 'daily',
+            new SortRules(array_values(array_map(
+                static fn (array $rule): SortRule => new SortRule((string) ($rule[0] ?? ''), (string) ($rule[1] ?? ''), (string) ($rule[2] ?? '')),
+                array_filter(is_array($stored['rules'] ?? null) ? $stored['rules'] : [], 'is_array')
+            )))
         );
     }
 
@@ -60,6 +67,7 @@ final class Settings
                 'unrecognised' => $this->folders->unrecognised,
             ],
             'schedule' => $this->schedule,
+            'rules'    => array_map(static fn (SortRule $rule): array => [$rule->sender, $rule->subject, $rule->folder], $this->rules->rules),
         ], false);
     }
 

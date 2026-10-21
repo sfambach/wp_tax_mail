@@ -189,10 +189,10 @@ final class ImapClient
         return null;
     }
 
-    /** The whole mail as the server stores it; PEEK keeps it unread. */
     /** Order text sits at the start; a scanned invoice or photo attached behind it must not exhaust the memory limit. */
     private const MAX_MAIL_BYTES = 2_000_000;
 
+    /** The mail as the server stores it, up to MAX_MAIL_BYTES; PEEK keeps it unread. */
     public function fetchRaw(int $uid): string
     {
         foreach ($this->command(sprintf('UID FETCH %d (BODY.PEEK[]<0.%d>)', $uid, self::MAX_MAIL_BYTES)) as $response) {
@@ -202,6 +202,25 @@ final class ImapClient
         }
 
         throw new ImapException(sprintf('mail with UID %d not found', $uid));
+    }
+
+    /**
+     * The «From» header of every mail in the selected folder, in one command: enough to count senders among thousands
+     * of mails without fetching a single body.
+     *
+     * @return list<string> raw header blocks
+     */
+    public function fromHeaders(): array
+    {
+        $headers = [];
+
+        foreach ($this->command('UID FETCH 1:* (BODY.PEEK[HEADER.FIELDS (FROM)])') as $response) {
+            if ($response->literals !== [] && preg_match('/^\d+ FETCH /i', $response->text) === 1) {
+                $headers[] = $response->literals[0];
+            }
+        }
+
+        return $headers;
     }
 
     public function move(int $uid, string $folder): void

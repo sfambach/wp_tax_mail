@@ -10,8 +10,11 @@ use TaxMail\Core\Imap\ImapClient;
  */
 final class ConnectionCheck
 {
-    public function __construct(private readonly FolderPlan $folders)
-    {
+    /** @param list<string> $extraFolders folders his sorting rules point at (D-949) */
+    public function __construct(
+        private readonly FolderPlan $folders,
+        private readonly array $extraFolders = [],
+    ) {
     }
 
     /**
@@ -22,12 +25,34 @@ final class ConnectionCheck
     public function run(ImapClient $client): array
     {
         $delimiter = $client->delimiter();
+        [$created, $present] = self::ensureFolders($client, array_values(array_unique([...$this->folders->targets(), ...$this->extraFolders])));
+
+        $inbox = $client->select($this->folders->inbox);
+
+        return [
+            'inbox_count' => $inbox->messageCount,
+            'can_move'    => $client->canMove(),
+            'delimiter'   => $delimiter,
+            'created'     => $created,
+            'present'     => $present,
+        ];
+    }
+
+    /**
+     * Creates the folders that are missing and subscribes all of them; expects a client that is logged in.
+     *
+     * @param list<string> $folders written with «/»
+     * @return array{0: list<string>, 1: list<string>} created, already present — as on the server
+     */
+    public static function ensureFolders(ImapClient $client, array $folders): array
+    {
+        $delimiter = $client->delimiter();
         $existing = $client->folders();
         $created = [];
         $present = [];
         $subscribe = [];
 
-        foreach ($this->folders->targets() as $folder) {
+        foreach ($folders as $folder) {
             $onServer = FolderPlan::onServer($folder, $delimiter);
             $parents = explode($delimiter, $onServer);
 
@@ -54,14 +79,6 @@ final class ConnectionCheck
             $client->subscribe($path);
         }
 
-        $inbox = $client->select($this->folders->inbox);
-
-        return [
-            'inbox_count' => $inbox->messageCount,
-            'can_move'    => $client->canMove(),
-            'delimiter'   => $delimiter,
-            'created'     => $created,
-            'present'     => $present,
-        ];
+        return [$created, $present];
     }
 }
