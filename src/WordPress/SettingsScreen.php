@@ -158,6 +158,25 @@ final class SettingsScreen
         return $html;
     }
 
+    /** The steps from an empty mailbox to the first proposal, for the box beside the form (D-963). */
+    public static function guide(string $inboxUrl): string
+    {
+        $steps = [
+            esc_html__('Use one mailbox for purchases only, and let shops send their order mails there (or forward them).', 'taxmail'),
+            esc_html__('Look up the IMAP server of your mail provider, with SSL on port 993 — for Strato: imap.strato.de.', 'taxmail'),
+            esc_html__('Enter server, port, user (the full address) and password under «Mailbox», then Save. The password is stored encrypted.', 'taxmail'),
+            esc_html__('Click «Test connection». It logs in and creates the folders «Importiert», «Verworfen» and «Nicht erkannt».', 'taxmail'),
+            esc_html__('Tick the shops under «Mail connections», choose how often to fetch, and Save.', 'taxmail'),
+            sprintf(
+                /* translators: %s: link to the modeller's inbox */
+                esc_html__('Open the %s and click «Fetch now». Older mails come with «Sort the backlog».', 'taxmail'),
+                '<a href="' . esc_url($inboxUrl) . '">' . esc_html__('Inbox', 'taxmod') . '</a>'
+            ),
+        ];
+
+        return '<ol><li>' . implode('</li><li>', $steps) . '</li></ol>';
+    }
+
     /** A button-looking link to admin-post.php with its own nonce; it changes no setting, so unsaved fields stay unsaved. */
     private static function actionLink(string $action, string $label): string
     {

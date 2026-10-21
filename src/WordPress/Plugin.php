@@ -24,7 +24,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.1.1';
+    public const VERSION     = '0.1.2';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -102,6 +102,7 @@ final class Plugin
                 return (new SettingsScreen())->render(Settings::load(), is_array($result) ? $result : null, admin_url('admin.php?page=' . InboxScreen::PAGE));
             },
             'save'   => $this->save(...),
+            'guide'  => static fn (): string => SettingsScreen::guide(admin_url('admin.php?page=' . InboxScreen::PAGE)),
         ];
 
         return $tabs;
