@@ -3,7 +3,7 @@
 namespace TaxMail\Core\Import;
 
 use TaxMail\Core\Mail\MailMessage;
-use TaxMail\Core\Proposal\OrderProposal;
+use Taxmod\Core\Import\OrderProposal;
 
 /**
  * One mail after the parsers had their go at it.

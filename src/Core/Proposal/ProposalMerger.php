@@ -3,6 +3,9 @@
 namespace TaxMail\Core\Proposal;
 
 use TaxMail\Core\Parser\LineCollector;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
+use Taxmod\Core\Import\ProposalLine;
 
 /**
  * Folds the proposals of one order — confirmation, shipping, delivery mail — into one, as the Python importer's Store
@@ -50,6 +53,8 @@ final class ProposalMerger
             $first(static fn (OrderProposal $p): ?string => $p->fees),
             $first(static fn (OrderProposal $p): ?string => $p->shippedDate),
             $tracking,
+            $first(static fn (OrderProposal $p): ?string => $p->source),
+            $base->externalId,
         );
     }
 

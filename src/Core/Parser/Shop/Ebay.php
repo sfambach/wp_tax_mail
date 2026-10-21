@@ -6,8 +6,8 @@ use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Parser\LineCollector;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\Text;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 
 /**
  * eBay: purchases (confirmation, shipping, delivery, refund), sales, and won auctions or invoices without an order

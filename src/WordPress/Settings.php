@@ -5,8 +5,9 @@ namespace TaxMail\WordPress;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Mailbox\SortRule;
 use TaxMail\Core\Mailbox\SortRules;
-use TaxMail\Core\Secret\SecretBox;
-use TaxMail\Core\Secret\SecretException;
+use Taxmod\Core\Exception\SecretDoesNotOpen;
+use Taxmod\Core\Import\SecretBox;
+use Taxmod\WordPress\Import\Vault;
 
 /**
  * The module's settings in one option: which parsers are on, the folder names, the schedule, the sorting rules. The mailbox account sits in
@@ -97,7 +98,7 @@ final class Settings
 
         try {
             $password = self::box()->open($account['sealed']);
-        } catch (SecretException) {
+        } catch (SecretDoesNotOpen) {
             return null; // the salts changed since it was sealed; the settings page asks for the password again
         }
 
@@ -116,7 +117,7 @@ final class Settings
             try {
                 self::box()->open($sealed);
                 $opens = true;
-            } catch (SecretException) {
+            } catch (SecretDoesNotOpen) {
             }
         }
 
@@ -137,8 +138,9 @@ final class Settings
         update_option(self::ACCOUNT_OPTION, ['host' => $host, 'port' => $port, 'user' => $user, 'password' => $sealed], false);
     }
 
+    /** The modeller's vault (D-951); the context is the one tax_mail sealed with before, so stored passwords still open. */
     private static function box(): SecretBox
     {
-        return new SecretBox(wp_salt('auth'));
+        return Vault::for('taxmail-secret');
     }
 }

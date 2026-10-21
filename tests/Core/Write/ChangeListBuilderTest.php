@@ -3,9 +3,9 @@
 namespace TaxMail\Tests\Core\Write;
 
 use PHPUnit\Framework\TestCase;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
-use TaxMail\Core\Proposal\ProposalLine;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
+use Taxmod\Core\Import\ProposalLine;
 use TaxMail\Core\Write\ChangeListBuilder;
 use TaxMail\Core\Write\ExistingOrder;
 use TaxMail\Core\Write\Money;

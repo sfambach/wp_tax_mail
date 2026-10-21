@@ -4,9 +4,9 @@ namespace TaxMail\Core\Parser\Shop;
 
 use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Parser\OrderMailParser;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
-use TaxMail\Core\Proposal\ProposalLine;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
+use Taxmod\Core\Import\ProposalLine;
 
 /**
  * JLCPCB (reaches the mailbox forwarded): review mail «Order Review … Completed» (the boards of the order), shipping

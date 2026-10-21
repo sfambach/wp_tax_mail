@@ -28,6 +28,8 @@ jobs:
 
       - name: Core tests
         run: |
+          # The shared proposal format and vault live in the modeller (D-952); the tests load its core from a checkout.
+          git clone --depth 1 https://github.com/sfambach/wp-taxonomy-modeler ../wp-taxonomy-modeler
           composer install --no-interaction --no-progress
           php vendor/phpunit/phpunit/phpunit
 

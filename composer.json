@@ -14,7 +14,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "TaxMail\\Tests\\": "tests/"
+            "TaxMail\\Tests\\": "tests/",
+            "Taxmod\\Core\\": "../wp-taxonomy-modeler/src/Core/"
         }
     },
     "require-dev": {

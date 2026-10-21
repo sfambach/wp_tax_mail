@@ -3,8 +3,8 @@
 namespace TaxMail\WordPress;
 
 use TaxMail\Core\Parser\ParserRegistry;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 use TaxMail\Core\Proposal\ProposalMerger;
 use TaxMail\Core\Proposal\WonAuctionMatch;
 use TaxMail\Core\Write\ExistingOrder;

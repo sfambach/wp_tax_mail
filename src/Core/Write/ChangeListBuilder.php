@@ -2,8 +2,8 @@
 
 namespace TaxMail\Core\Write;
 
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalLine;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalLine;
 
 /**
  * Turns a reviewed proposal into the change list `taxmod/write-data` takes (D-936): an order record with the picked

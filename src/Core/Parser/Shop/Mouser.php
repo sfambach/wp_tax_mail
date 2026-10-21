@@ -6,8 +6,8 @@ use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Parser\LineCollector;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\Text;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 
 /**
  * Mouser: order confirmation (items, goods value, shipping, VAT) and shipment notice (tracking number).

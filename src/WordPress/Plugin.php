@@ -11,10 +11,11 @@ use TaxMail\Core\Mailbox\SortRules;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\ParserRegistry;
 use TaxMail\Core\Parser\ShippedParsers;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 use TaxMail\Core\Write\ChangeListBuilder;
 use TaxMail\Core\Write\WriteException;
+use Taxmod\WordPress\Import\Vault;
 use WP_Error;
 
 /**
@@ -24,7 +25,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.21';
+    public const VERSION     = '0.0.22';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -50,6 +51,29 @@ final class Plugin
 
         register_activation_hook($file, $plugin->activate(...));
         register_deactivation_hook($file, static fn () => wp_clear_scheduled_hook(self::CRON_HOOK));
+
+        // The proposal format and the vault live in the modeller since D-952; whether it is loaded is known only
+        // once every plugin is.
+        add_action('plugins_loaded', static function () use ($plugin, $file): void {
+            if (! self::modellerReady()) {
+                add_action('admin_notices', static fn () => print '<div class="notice notice-error"><p><strong>Taxmod Mail:</strong> '
+                    . esc_html__('needs the Taxonomy Modeller 0.1.31 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
+
+                return;
+            }
+
+            $plugin->hook($file);
+        });
+    }
+
+    public static function modellerReady(): bool
+    {
+        return class_exists(Vault::class) && Vault::API >= 1;
+    }
+
+    private function hook(string $file): void
+    {
+        $plugin = $this;
 
         add_action('init', static fn () => load_plugin_textdomain('taxmail', false, dirname(plugin_basename($file)) . '/languages'));
         add_action('admin_init', Schema::upgrade(...));

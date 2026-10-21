@@ -6,8 +6,8 @@ use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Parser\LineCollector;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\Text;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 
 /**
  * Conrad: «Bestellt» mail (items, shipping, sum), shipping and delivery mails, invoices.

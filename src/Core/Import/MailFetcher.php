@@ -7,7 +7,8 @@ use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Mail\MimeParser;
 use TaxMail\Core\Parser\ParserException;
 use TaxMail\Core\Parser\ParserRegistry;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 
 /**
  * Reads the mails that arrived since the last run and lets the active parsers read them. It writes nothing and moves
@@ -72,6 +73,8 @@ final class MailFetcher
         }
 
         $outcome = $proposal->kind === ProposalKind::NoReceipt ? FetchOutcome::NoReceipt : FetchOutcome::Proposed;
+        // The shared format names its source and the source's own id (D-953); the parsers need not know.
+        $proposal = OrderProposal::fromArray(['source' => 'mail', 'external_id' => $mail->messageId !== '' ? $mail->messageId : null] + $proposal->toArray());
 
         return new FetchedMail($mail, $outcome, $parser->key(), $proposal);
     }

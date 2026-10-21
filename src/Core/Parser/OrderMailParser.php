@@ -3,7 +3,7 @@
 namespace TaxMail\Core\Parser;
 
 use TaxMail\Core\Mail\MailMessage;
-use TaxMail\Core\Proposal\OrderProposal;
+use Taxmod\Core\Import\OrderProposal;
 
 /**
  * One mail connection: recognises the mails of one shop and reads an order proposal from them. The owner switches

@@ -2,7 +2,7 @@
 
 namespace TaxMail\WordPress;
 
-use TaxMail\Core\Proposal\OrderProposal;
+use Taxmod\Core\Import\OrderProposal;
 use TaxMail\Core\Proposal\WonAuctionMatch;
 use TaxMail\Core\Write\ExistingOrder;
 use TaxMail\Core\Write\TargetModel;

@@ -12,7 +12,7 @@ use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Mailbox\SenderTally;
 use TaxMail\Core\Mailbox\SortRules;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\ProposalKind;
 use TaxMail\Core\Proposal\WonAuctionMatch;
 use TaxMail\Core\Write\ExistingOrder;
 

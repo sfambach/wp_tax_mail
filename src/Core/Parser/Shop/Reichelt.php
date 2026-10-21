@@ -6,8 +6,8 @@ use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Parser\LineCollector;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\Text;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 
 /**
  * reichelt: order confirmation (two layouts), shipping info (tracking number), customer service about an order.

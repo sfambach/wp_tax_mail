@@ -10,8 +10,8 @@ use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\ParserException;
 use TaxMail\Core\Parser\ParserRegistry;
-use TaxMail\Core\Proposal\OrderProposal;
-use TaxMail\Core\Proposal\ProposalKind;
+use Taxmod\Core\Import\OrderProposal;
+use Taxmod\Core\Import\ProposalKind;
 use TaxMail\Tests\Core\Imap\ScriptedStream;
 
 final class MailFetcherTest extends TestCase
@@ -19,7 +19,7 @@ final class MailFetcherTest extends TestCase
     public function testEachMailGetsAnOutcome(): void
     {
         $mails = [
-            11 => "From: a@shop.de\nSubject: Bestellung 1\n\nx",
+            11 => "From: a@shop.de\nSubject: Bestellung 1\nMessage-ID: <m11@shop.de>\n\nx",
             12 => "From: a@shop.de\nSubject: Newsletter\n\nx",
             13 => "From: a@shop.de\nSubject: kaputt\n\nx",
             14 => "From: b@other.de\nSubject: Hallo\n\nx",
@@ -38,7 +38,7 @@ final class MailFetcherTest extends TestCase
             [FetchOutcome::Proposed, FetchOutcome::NoReceipt, FetchOutcome::Failed, FetchOutcome::Unrecognised],
             array_map(static fn ($result) => $result->outcome, $fetched)
         );
-        self::assertSame('1', $fetched[0]->proposal?->orderNumber);
+        self::assertSame(['1', 'mail', '<m11@shop.de>'], [$fetched[0]->proposal?->orderNumber, $fetched[0]->proposal?->source, $fetched[0]->proposal?->externalId]);
         self::assertSame('unreadable', $fetched[2]->error);
     }
 

@@ -2,6 +2,8 @@
 
 namespace TaxMail\Core\Proposal;
 
+use Taxmod\Core\Import\OrderProposal;
+
 /**
  * A won auction or invoice mail names no order number; the Python importer tied it to an order of the same platform
  * by seller or by the start of the item title, within 14 days. Same rule here, so it is not offered as a second order.

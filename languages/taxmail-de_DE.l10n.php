@@ -93,6 +93,7 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     'delivered' => 'zugestellt',
     'every hour' => 'stündlich',
     'invoice' => 'Rechnung',
+    'needs the Taxonomy Modeller 0.1.31 or later — the mail import is off until it is active.' => 'braucht den Taxonomy Modeller ab 0.1.31 — der Mail-Import ist aus, bis er aktiv ist.',
     'never (button only)' => 'nie (nur per Knopf)',
     'no receipt' => 'kein Beleg',
     'off — another module handles this shop' => 'aus – ein anderes Modul übernimmt diesen Shop',

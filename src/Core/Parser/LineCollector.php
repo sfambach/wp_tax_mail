@@ -2,7 +2,7 @@
 
 namespace TaxMail\Core\Parser;
 
-use TaxMail\Core\Proposal\ProposalLine;
+use Taxmod\Core\Import\ProposalLine;
 
 /**
  * Items of one mail; the same item (article number, or title start) seen twice is merged, not doubled — the

@@ -4,7 +4,7 @@ namespace TaxMail\WordPress;
 
 use TaxMail\Core\Import\FetchedMail;
 use TaxMail\Core\Import\FetchOutcome;
-use TaxMail\Core\Proposal\OrderProposal;
+use Taxmod\Core\Import\OrderProposal;
 use TaxMail\Core\Proposal\WonAuctionMatch;
 
 /**

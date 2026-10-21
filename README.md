@@ -2,7 +2,7 @@
 
 Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-modeler) (WordPress plugin).
 
-**Status: 0.0.21.** Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for eBay, Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; another module can switch a parser off (`taxmail_blocked_parsers`) or to status only (`taxmail_status_only_parsers`: its mails update orders but bring no new ones — tax_ebay does this for eBay once its API reads the purchases, D-950). Sorting rules (sender | subject | folder) and a sender count in the settings sort mails that are no order; a shop's mail without an order goes to «Verworfen». Connected to the Strato mailbox since 2026-10-20; the parsers are not yet checked on real mails. German translation in `languages/`. The draft concept (German) lives with the modeller:
+**Status: 0.0.22.** Needs the Taxonomy Modeller 0.1.31 or later: the proposal format (`OrderProposal`, `ProposalLine`, `ProposalKind`) and the vault for the password come from its core (D-952, D-953); without it the module stays off and says so. Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for eBay, Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; another module can switch a parser off (`taxmail_blocked_parsers`) or to status only (`taxmail_status_only_parsers`: its mails update orders but bring no new ones — tax_ebay does this for eBay once its API reads the purchases, D-950). Sorting rules (sender | subject | folder) and a sender count in the settings sort mails that are no order; a shop's mail without an order goes to «Verworfen». Connected to the Strato mailbox since 2026-10-20; the parsers are not yet checked on real mails. German translation in `languages/`. The draft concept (German) lives with the modeller:
 [`docs/pakete/mail/konzept.md`](https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md).
 
 ## Idea in short
@@ -13,10 +13,14 @@ Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-
 - Only the picked items are written, through the modeller's `taxmod/write-data` path.
 - Independent of the stock module; it only fires WordPress actions that other modules may listen to.
 
+## Tests
+
+The core tests load the modeller's core from a checkout next to this one (`../wp-taxonomy-modeler`, see `autoload-dev` in `composer.json`); the release workflow clones it.
+
 ## Setup
 
 Enter the mailbox under *Taxonomy Modeller → Mail import settings → Mailbox* (server, port, user, password). The
-password is stored encrypted (libsodium secretbox, key derived from the WordPress auth salt in `wp-config.php`), so a
+password is stored encrypted with the modeller's vault (libsodium secretbox, key derived from the WordPress auth salt in `wp-config.php`), so a
 database backup alone does not reveal it; the form never shows it again. If the salts change, the page asks for it anew.
 
 Alternatively the account can live in `wp-config.php`; these constants win over the fields:
