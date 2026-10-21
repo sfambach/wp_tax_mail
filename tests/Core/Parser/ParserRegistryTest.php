@@ -11,12 +11,11 @@ use Taxmod\Core\Import\ProposalKind;
 
 final class ParserRegistryTest extends TestCase
 {
-    public function testOnlySwitchedOnAndUnblockedParsersRun(): void
+    public function testOnlySwitchedOnParsersRun(): void
     {
         $registry = new ParserRegistry(
             [self::parser('ebay', 'ebay.de'), self::parser('reichelt', 'reichelt.de'), self::parser('mouser', 'mouser.com')],
-            ['ebay' => true, 'reichelt' => true],
-            ['ebay']
+            ['ebay' => false, 'reichelt' => true]
         );
 
         self::assertFalse($registry->isActive('ebay'));
@@ -25,14 +24,6 @@ final class ParserRegistryTest extends TestCase
         self::assertNull($registry->parserFor(self::mail('order@ebay.de')));
         self::assertSame('reichelt', $registry->parserFor(self::mail('shop@reichelt.de'))?->key());
         self::assertNull($registry->parserFor(self::mail('service@mouser.com')));
-    }
-
-    public function testStatusOnlyParserStillReads(): void
-    {
-        $registry = new ParserRegistry([self::parser('ebay', 'ebay.de')], ['ebay' => true], [], ['ebay']);
-
-        self::assertTrue($registry->isStatusOnly('ebay'));
-        self::assertSame('ebay', $registry->parserFor(self::mail('order@ebay.de'))?->key());
     }
 
     private static function mail(string $from): MailMessage

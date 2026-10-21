@@ -15,7 +15,7 @@ final class ShopParsersTest extends TestCase
     /** @return array<string, mixed> */
     private static function read(string $fixture): array
     {
-        $registry = new ParserRegistry(ShippedParsers::all(), array_fill_keys(['ebay', 'reichelt', 'mouser', 'conrad', 'aliexpress', 'jlcpcb'], true), []);
+        $registry = new ParserRegistry(ShippedParsers::all(), array_fill_keys(['ebay', 'reichelt', 'mouser', 'conrad', 'aliexpress', 'jlcpcb'], true));
         $mail = (new MimeParser())->parse(1, (string) file_get_contents(__DIR__ . '/fixtures/' . $fixture . '.eml'));
         $parser = $registry->parserFor($mail) ?? throw new \RuntimeException('no parser for ' . $fixture);
 
@@ -72,7 +72,7 @@ final class ShopParsersTest extends TestCase
     {
         $order = self::read('e6');
 
-        self::assertSame(['invoice', 'ohne-Nr:334455667788', '24.8'], [$order['kind'], $order['order_number'], $order['total']]);
+        self::assertSame(['invoice', 'ohne-Nr:334455667788', '24.8', true], [$order['kind'], $order['order_number'], $order['total'], $order['number_missing']]);
     }
 
     public function testEbayInvoiceQuantityFollowsLineTotal(): void

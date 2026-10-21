@@ -3,12 +3,13 @@
 namespace TaxMail\WordPress;
 
 /**
- * The settings page: parsers on/off, folder names, and the connection test. Returns its HTML (CD-8).
+ * The settings page: mailbox, parsers on/off, schedule, sorting rules, folder names, and the connection test. Fetching,
+ * the backlog, the search and starting over are buttons in the modeller's inbox (D-953). Returns its HTML (CD-8).
  */
 final class SettingsScreen
 {
     /** @param array<string, mixed>|null $check the last connection test; `mixed` because its fields differ by outcome */
-    public function render(Settings $settings, ?array $check): string
+    public function render(Settings $settings, ?array $check, string $inboxUrl): string
     {
         $registry = Plugin::registry($settings);
         $html = '<div class="wrap"><h1>' . esc_html__('Mail import', 'taxmail') . ' <small>' . esc_html(Plugin::VERSION) . '</small></h1>';
@@ -17,9 +18,18 @@ final class SettingsScreen
             $html .= '<div class="notice notice-success"><p>' . esc_html__('Settings saved.', 'taxmail') . '</p></div>';
         }
 
-        if (! class_exists('Taxmod\\WordPress\\Plugin')) {
-            $html .= '<div class="notice notice-warning"><p>' . esc_html__('The Taxonomy Modeller is not active — mails can be fetched, but nothing can be written.', 'taxmail') . '</p></div>';
+        $failure = (string) get_option(MailSource::LAST_FAILURE, '');
+
+        if ($failure !== '') {
+            /* translators: %s: time and reason */
+            $html .= '<div class="notice notice-warning"><p>' . esc_html(sprintf(__('Last problem: %s', 'taxmail'), $failure)) . '</p></div>';
         }
+
+        $html .= '<p>' . sprintf(
+            /* translators: %s: link to the modeller's inbox */
+            esc_html__('Proposals, fetching, the backlog, «fetch an order» and starting over are on the page %s of the Taxonomy Modeller.', 'taxmail'),
+            '<a href="' . esc_url($inboxUrl) . '">' . esc_html__('Inbox', 'taxmod') . '</a>'
+        ) . '</p>';
 
         $html .= $this->connection($check);
 
@@ -37,13 +47,9 @@ final class SettingsScreen
                 . esc_html__('Mail connections', 'taxmail') . '</caption><tbody>';
 
             foreach ($registry->all() as $key => $parser) {
-                $blocked = $registry->isBlocked($key);
                 $html .= '<tr><td><label><input type="checkbox" name="parsers[' . esc_attr($key) . ']" value="1"'
-                    . checked($settings->parsers[$key] ?? false, true, false) . disabled($blocked, true, false) . '> '
-                    . esc_html($parser->shopName()) . '</label></td><td>'
-                    . ($blocked ? esc_html__('off — another module handles this shop', 'taxmail') : '')
-                    . ($registry->isStatusOnly($key) ? esc_html__('status only — another module brings the orders', 'taxmail') : '')
-                    . '</td></tr>';
+                    . checked($settings->parsers[$key] ?? false, true, false) . '> '
+                    . esc_html($parser->shopName()) . '</label></td></tr>';
             }
 
             $html .= '</tbody></table>';
@@ -53,7 +59,7 @@ final class SettingsScreen
             . esc_html__('Fetch new mails', 'taxmail') . '</label> <select id="taxmail-schedule" name="schedule">';
 
         foreach ([
-            ''           => __('never (button only)', 'taxmail'),
+            ''           => __('never (button in the inbox only)', 'taxmail'),
             'hourly'     => __('every hour', 'taxmail'),
             'twicedaily' => __('twice a day', 'taxmail'),
             'daily'      => __('once a day', 'taxmail'),
@@ -157,26 +163,11 @@ final class SettingsScreen
             . get_submit_button(__('Test connection', 'taxmail'), 'secondary', 'submit', false)
             . '</form>';
 
-        $html .= '<h2>' . esc_html__('Backlog', 'taxmail') . '</h2><p>'
-            . esc_html__('Reads the mails from before the starting point: a mail whose order is in the model already moves to «Imported», a mail a parser can read becomes a proposal, the sorting rules sort the rest, and what no rule names stays in the inbox. Each click works for about 20 seconds; click again until nothing is left.', 'taxmail')
-            . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
-            . '<input type="hidden" name="action" value="taxmail_backlog">' . wp_nonce_field('taxmail_backlog', '_wpnonce', true, false)
-            . '<p><label><input type="checkbox" name="from_start" value="1"> ' . esc_html__('Start again from the oldest mail (after a parser was switched on or fixed)', 'taxmail') . '</label></p>'
-            . get_submit_button(__('Sort backlog', 'taxmail'), 'secondary', 'submit', false)
-            . '</form>';
-
         $html .= '<h2>' . esc_html__('Senders', 'taxmail') . '</h2><p>'
             . esc_html__('Counts who sent the mails in the inbox, as a help for the sorting rules. Nothing is moved.', 'taxmail')
             . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
             . '<input type="hidden" name="action" value="taxmail_senders">' . wp_nonce_field('taxmail_senders', '_wpnonce', true, false)
             . get_submit_button(__('Count senders', 'taxmail'), 'secondary', 'submit', false)
-            . '</form>';
-
-        $html .= '<h2>' . esc_html__('Start over', 'taxmail') . '</h2><p>'
-            . esc_html__('Moves the mails in «Not recognised» and «Discarded» back to the inbox, forgets every proposal not taken over, and from then on reads only mails that arrive later. Taken-over orders and the «Imported» folder stay.', 'taxmail')
-            . '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
-            . '<input type="hidden" name="action" value="taxmail_restart">' . wp_nonce_field('taxmail_restart', '_wpnonce', true, false)
-            . get_submit_button(__('Start over from now', 'taxmail'), 'secondary', 'submit', false, ['onclick' => "return confirm(this.form.previousElementSibling.textContent)"])
             . '</form>';
 
         return $html;

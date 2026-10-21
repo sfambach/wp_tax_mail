@@ -305,7 +305,8 @@ final class Ebay implements OrderMailParser
         $items = new LineCollector();
         $items->add($title, $quantity, $price, $article);
 
+        // No order number in these mails: the key only keeps two of them apart; the modeller finds the order by seller and title.
         return new OrderProposal($this->shopName(), 'ohne-Nr:' . $key, ProposalKind::Invoice, $mail->date?->format('Y-m-d'), 'EUR',
-            $items->lines(), null, Text::decimal($total), $seller);
+            $items->lines(), null, Text::decimal($total), $seller, numberMissing: true);
     }
 }

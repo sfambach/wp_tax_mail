@@ -6,16 +6,8 @@ use InvalidArgumentException;
 use TaxMail\Core\Mail\MailMessage;
 
 /**
- * All known parsers and which of them run: switched on by the owner and not blocked by another module. A module may
- * also leave a parser running for status only: it then updates orders in the model but never brings a new one (D-950:
- * once tax_ebay reads purchases from the API, eBay mails only say shipped or delivered).
- *
- * ```mermaid
- * flowchart LR
- *   A["all parsers"] --> S{"switched on?"}
- *   S -->|yes| B{"blocked by a module?"}
- *   B -->|no| R["runs"]
- * ```
+ * All known parsers and which of them run: those the owner switched on. Which module brings a shop's orders and which
+ * only its status is the modeller's duty table now (D-953), not a matter of the parsers.
  */
 final class ParserRegistry
 {
@@ -25,15 +17,9 @@ final class ParserRegistry
     /**
      * @param iterable<OrderMailParser> $parsers
      * @param array<string, bool> $switchedOn key => on; a parser missing here is off
-     * @param list<string> $blocked keys another module took over
-     * @param list<string> $statusOnly keys whose new orders another module brings
      */
-    public function __construct(
-        iterable $parsers,
-        private readonly array $switchedOn,
-        private readonly array $blocked,
-        private readonly array $statusOnly = [],
-    ) {
+    public function __construct(iterable $parsers, private readonly array $switchedOn)
+    {
         foreach ($parsers as $parser) {
             if (isset($this->parsers[$parser->key()])) {
                 throw new InvalidArgumentException('two parsers share the key ' . $parser->key());
@@ -49,19 +35,9 @@ final class ParserRegistry
         return $this->parsers;
     }
 
-    public function isBlocked(string $key): bool
-    {
-        return in_array($key, $this->blocked, true);
-    }
-
-    public function isStatusOnly(string $key): bool
-    {
-        return in_array($key, $this->statusOnly, true);
-    }
-
     public function isActive(string $key): bool
     {
-        return isset($this->parsers[$key]) && ($this->switchedOn[$key] ?? false) && ! $this->isBlocked($key);
+        return isset($this->parsers[$key]) && ($this->switchedOn[$key] ?? false);
     }
 
     /** The first active parser that recognises the mail; null when none does. */

@@ -11,24 +11,22 @@ use TaxMail\Core\Mailbox\SortRules;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\ParserRegistry;
 use TaxMail\Core\Parser\ShippedParsers;
-use Taxmod\Core\Import\OrderProposal;
-use Taxmod\Core\Import\ProposalKind;
-use TaxMail\Core\Write\ChangeListBuilder;
-use TaxMail\Core\Write\WriteException;
-use Taxmod\WordPress\Import\Vault;
-use WP_Error;
+use Taxmod\Core\Import\BacklogSource;
+use Taxmod\WordPress\Import\InboxScreen;
+use Taxmod\WordPress\Import\Sources;
 
 /**
- * The boundary: menu, settings, the connection test. It wires WordPress to the core and decides nothing.
+ * The boundary: registers the mailbox as a source of the modeller's inbox (D-953) and keeps the settings page — account,
+ * parsers, folders, sorting rules, the connection test. It wires WordPress to the core and decides nothing.
  *
  * @see https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.22';
+    public const VERSION     = '0.1.0';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
-    public const PAGE        = 'taxmail';
+    public const PAGE        = 'taxmail-settings';
 
     /** Where the last connection test's outcome waits for the redirect — per user, ten minutes. */
     private const CHECK_RESULT = 'taxmail_check_';
@@ -36,28 +34,16 @@ final class Plugin
     /** The last sender count per user, shown beside the sorting rules. */
     public const SENDERS = 'taxmail_senders_';
 
-    public const SETTINGS_PAGE = 'taxmail-settings';
-    public const CRON_HOOK     = 'taxmail_fetch_cron';
-
-    /** The last failed automatic fetch, shown on the review page — the cron has nobody else to tell. */
-    public const CRON_FAILURE = 'taxmail_cron_failure';
-
-    /** Messages for the next page view of one user, after a redirect. */
-    private const NOTICES = 'taxmail_notices_';
-
     public static function boot(string $file): void
     {
         $plugin = new self();
 
-        register_activation_hook($file, $plugin->activate(...));
-        register_deactivation_hook($file, static fn () => wp_clear_scheduled_hook(self::CRON_HOOK));
-
-        // The proposal format and the vault live in the modeller since D-952; whether it is loaded is known only
-        // once every plugin is.
+        // The inbox, the proposal format and the vault live in the modeller since D-952/D-953; whether it is loaded is
+        // known only once every plugin is.
         add_action('plugins_loaded', static function () use ($plugin, $file): void {
             if (! self::modellerReady()) {
                 add_action('admin_notices', static fn () => print '<div class="notice notice-error"><p><strong>Taxmod Mail:</strong> '
-                    . esc_html__('needs the Taxonomy Modeller 0.1.31 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
+                    . esc_html__('needs the Taxonomy Modeller 0.1.36 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
 
                 return;
             }
@@ -68,7 +54,7 @@ final class Plugin
 
     public static function modellerReady(): bool
     {
-        return class_exists(Vault::class) && Vault::API >= 1;
+        return interface_exists(BacklogSource::class) && class_exists(Sources::class);
     }
 
     private function hook(string $file): void
@@ -76,57 +62,13 @@ final class Plugin
         $plugin = $this;
 
         add_action('init', static fn () => load_plugin_textdomain('taxmail', false, dirname(plugin_basename($file)) . '/languages'));
-        add_action('admin_init', Schema::upgrade(...));
-        add_action('admin_init', self::schedule(...));
+        add_action('admin_init', LegacyProposals::moveOnce(...));
+        add_filter(Sources::FILTER, static fn (array $sources): array => [...$sources, new MailSource(Settings::load())]);
         add_action('admin_menu', $plugin->registerMenu(...), 20);
-        add_action(self::CRON_HOOK, $plugin->runCron(...));
         add_action('admin_post_taxmail_save', $plugin->handleSave(...));
         add_action('admin_post_taxmail_check', $plugin->handleCheck(...));
-        add_action('admin_post_taxmail_fetch', $plugin->handleFetch(...));
-        add_action('admin_post_taxmail_restart', $plugin->handleRestart(...));
-        add_action('admin_post_taxmail_fetch_matching', $plugin->handleFetchMatching(...));
-        add_action('admin_post_taxmail_backlog', $plugin->handleBacklog(...));
         add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
-        add_action('admin_post_taxmail_take', $plugin->handleTake(...));
-        add_action('admin_post_taxmail_discard', $plugin->handleDiscard(...));
         add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
-    }
-
-    public function activate(): void
-    {
-        Schema::upgrade();
-        self::schedule();
-    }
-
-    /** Daily unless he picks otherwise in the settings; the button fetches on demand (his word, 2026-10-20). */
-    public static function schedule(): void
-    {
-        $wanted = Settings::load()->schedule;
-
-        if ((wp_get_schedule(self::CRON_HOOK) ?: '') === $wanted) {
-            return;
-        }
-
-        wp_clear_scheduled_hook(self::CRON_HOOK);
-
-        if ($wanted !== '') {
-            wp_schedule_event(time() + HOUR_IN_SECONDS, $wanted, self::CRON_HOOK);
-        }
-    }
-
-    /** WP-Cron runs without a user: it may fetch and store, never write to the model (that needs his pick anyway). */
-    public function runCron(): void
-    {
-        if (Settings::credentials() === null) {
-            return;
-        }
-
-        try {
-            (new Mailbox(Settings::load()))->fetch();
-            delete_option(self::CRON_FAILURE);
-        } catch (ImapException $failure) {
-            update_option(self::CRON_FAILURE, current_time('mysql') . ' — ' . $failure->getMessage(), false);
-        }
     }
 
     /**
@@ -140,248 +82,25 @@ final class Plugin
             static fn (mixed $parser): bool => $parser instanceof OrderMailParser
         ));
 
-        // Another module that takes over a shop says so: blocked, the parser is off; status only, its mails update
-        // orders but bring none (D-950 — tax_ebay signals «ebay» once its API reads the purchases).
-        $blocked = array_values(array_map('strval', (array) apply_filters('taxmail_blocked_parsers', [])));
-        $statusOnly = array_values(array_map('strval', (array) apply_filters('taxmail_status_only_parsers', [])));
-
-        return new ParserRegistry($parsers, $settings->parsers, $blocked, $statusOnly);
+        return new ParserRegistry($parsers, $settings->parsers);
     }
 
     public function registerMenu(): void
     {
-        // Under the modeller's menu when it is there; the module is useless without it, but the pages still say so.
-        $parent = isset($GLOBALS['admin_page_hooks']['taxmod']) ? 'taxmod' : 'options-general.php';
-
         add_submenu_page(
-            $parent,
-            __('Review incoming orders', 'taxmail'),
-            __('Mail import', 'taxmail'),
+            isset($GLOBALS['admin_page_hooks']['taxmod']) ? 'taxmod' : 'options-general.php',
+            __('Mail import settings', 'taxmail'),
+            __('Mail import settings', 'taxmail'),
             self::CAPABILITY,
             self::PAGE,
-            function (): void {
-                $notices = array_map('esc_html', $this->takeNotices());
-                $cronFailure = (string) get_option(self::CRON_FAILURE, '');
-
-                if ($cronFailure !== '') {
-                    /* translators: %s: time and reason */
-                    $notices[] = esc_html(sprintf(__('Last automatic fetch failed: %s', 'taxmail'), $cronFailure));
-                }
-
-                $model = ModelGateway::available() ? new ModelGateway(Targets::load()) : null;
-                try {
-                    print (new ReviewScreen(new ProposalTable(), $model, self::registry(Settings::load())))->render($notices);
-                } catch (\Throwable $failure) {
-                    print '<div class="wrap"><div class="notice notice-error"><p>' . esc_html(sprintf('%s: %s (%s:%d)', $failure::class,
-                        $failure->getMessage(), basename($failure->getFile()), $failure->getLine())) . '</p></div></div>';
-                }
-            }
-        );
-
-        add_submenu_page(
-            $parent,
-            __('Mail import settings', 'taxmail'),
-            __('Mail import settings', 'taxmail'),
-            self::CAPABILITY,
-            self::SETTINGS_PAGE,
             static function (): void {
                 $user = get_current_user_id();
                 $result = get_transient(self::CHECK_RESULT . $user);
                 delete_transient(self::CHECK_RESULT . $user);
 
-                print (new SettingsScreen())->render(Settings::load(), is_array($result) ? $result : null);
+                print (new SettingsScreen())->render(Settings::load(), is_array($result) ? $result : null, admin_url('admin.php?page=' . InboxScreen::PAGE));
             }
         );
-    }
-
-    public function handleFetch(): void
-    {
-        $this->guard('taxmail_fetch');
-
-        try {
-            $counts = (new Mailbox(Settings::load()))->fetch();
-            $this->notice(sprintf(
-                /* translators: 1: mails read, 2: new proposals or rows, 3: mails moved to a folder */
-                __('%1$d mails read, %2$d stored, %3$d sorted into folders.', 'taxmail'),
-                $counts['fetched'],
-                $counts['stored'],
-                $counts['moved']
-            ));
-        } catch (ImapException $failure) {
-            /* translators: %s: the server's answer */
-            $this->notice(sprintf(__('Fetching failed: %s', 'taxmail'), $failure->getMessage()));
-        }
-
-        $this->back(self::PAGE, []);
-    }
-
-    public function handleFetchMatching(): void
-    {
-        $this->guard('taxmail_fetch_matching');
-        // Order numbers are letters, digits and dashes; anything else is dropped so the IMAP search string stays plain.
-        $text = isset($_POST['order_number']) ? preg_replace('/[^A-Za-z0-9-]/', '', (string) wp_unslash($_POST['order_number'])) : '';
-
-        if (strlen((string) $text) < 4) {
-            $this->notice(__('Enter an order number (at least 4 characters).', 'taxmail'));
-            $this->back(self::PAGE, []);
-        }
-
-        try {
-            $counts = (new Mailbox(Settings::load()))->fetchMatching((string) $text);
-            $this->notice(sprintf(
-                /* translators: 1: order number, 2: mails found, 3: new rows, 4: read by a parser, 5: no parser, 6: parser failed */
-                __('%1$s: %2$d mails found, %3$d new; %4$d read, %5$d not recognised, %6$d failed.', 'taxmail'),
-                $text,
-                $counts['found'],
-                $counts['stored'],
-                $counts['proposed'],
-                $counts['unrecognised'],
-                $counts['failed']
-            ));
-        } catch (ImapException $failure) {
-            /* translators: %s: the server's answer */
-            $this->notice(sprintf(__('Fetching failed: %s', 'taxmail'), $failure->getMessage()));
-        }
-
-        $this->back(self::PAGE, []);
-    }
-
-    public function handleRestart(): void
-    {
-        $this->guard('taxmail_restart');
-
-        try {
-            $counts = (new Mailbox(Settings::load()))->restartFromNow();
-            $this->notice(sprintf(
-                /* translators: 1: mails moved back to the inbox, 2: proposals forgotten */
-                __('Started over: %1$d mails back in the inbox, %2$d proposals forgotten. From now on only new mails are read.', 'taxmail'),
-                $counts['returned'],
-                $counts['forgotten']
-            ));
-        } catch (ImapException $failure) {
-            /* translators: %s: the server's answer */
-            $this->notice(sprintf(__('Starting over failed: %s', 'taxmail'), $failure->getMessage()));
-        }
-
-        $this->back(self::PAGE, []);
-    }
-
-    public function handleBacklog(): void
-    {
-        $this->guard('taxmail_backlog');
-        $this->reportFatal(__('Sorting the backlog failed: %s', 'taxmail'));
-
-        if (! ModelGateway::available()) {
-            $this->notice(__('The Taxonomy Modeller is not active — the backlog cannot be compared with the model.', 'taxmail'));
-            $this->back(self::PAGE, []);
-        }
-
-        if (isset($_POST['from_start'])) {
-            delete_option(Mailbox::BACKLOG_OPTION);
-        }
-
-        wp_raise_memory_limit('admin');
-
-        try {
-            $counts = (new Mailbox(Settings::load()))->sortBacklog(new ModelGateway(Targets::load()));
-            $this->notice(sprintf(
-                /* translators: 1: mails checked, 2: moved to «Importiert», 3: new proposals, 4: sorted by rules, 5: still to check */
-                __('Backlog: %1$d mails checked, %2$d already in the model and moved to «Imported», %3$d new proposals, %4$d sorted into folders, %5$d still to check.', 'taxmail'),
-                $counts['checked'],
-                $counts['moved'],
-                $counts['stored'],
-                $counts['sorted'],
-                $counts['remaining']
-            ));
-
-            if ($counts['failed'] > 0) {
-                /* translators: 1: number of mails, 2: the first error */
-                $this->notice(sprintf(__('%1$d mails could not be read and stay in the inbox. First: %2$s', 'taxmail'), $counts['failed'], (string) $counts['first_failure']));
-            }
-
-            if ($counts['checked'] === 0 && $counts['remaining'] === 0) {
-                $this->notice(__('The backlog is done. To read it again, tick «Start again from the oldest mail».', 'taxmail'));
-            }
-        } catch (ImapException $failure) {
-            /* translators: %s: the server's answer */
-            $this->notice(sprintf(__('Sorting the backlog failed: %s', 'taxmail'), $failure->getMessage()));
-        } catch (\Throwable $failure) {
-            // Reported on the page instead of WordPress's «critical error», which tells him nothing.
-            /* translators: %s: the server's answer */
-            $this->notice(sprintf(__('Sorting the backlog failed: %s', 'taxmail'), $failure::class . ': ' . $failure->getMessage()
-                . ' (' . basename($failure->getFile()) . ':' . $failure->getLine() . ')'));
-        }
-
-        $this->back(self::PAGE, []);
-    }
-
-    public function handleTake(): void
-    {
-        $rows = $this->reviewedRows();
-        $proposal = ReviewScreen::merged($rows);
-        $model = new ModelGateway(Targets::load());
-        $builder = new ChangeListBuilder(Targets::load());
-        $delivered = array_values(array_filter($rows, static fn (array $row): bool => $row['kind'] === ProposalKind::Delivered->value));
-        $receivedDate = $delivered === [] ? null : substr((string) ($delivered[0]['received_at'] ?? current_time('mysql')), 0, 10);
-        $shipped = array_filter($rows, static fn (array $row): bool => $row['kind'] === ProposalKind::Shipped->value) !== [];
-
-        try {
-            $existing = $model->findOrder($proposal->platform, $proposal->orderNumber);
-
-            if ($existing instanceof WP_Error) {
-                throw new WriteException($existing->get_error_message());
-            }
-
-            if ($existing === null && self::registry(Settings::load())->isStatusOnly((string) $rows[0]['parser'])) {
-                throw new WriteException(__('another module brings the orders of this shop; its mails only update them', 'taxmail'));
-            }
-
-            if ($existing === null && $proposal->lines !== []) {
-                $changes = $builder->newOrder($proposal, $this->pickedLines(count($proposal->lines)), self::originNote($rows[0], $proposal), $receivedDate);
-            } elseif ($existing !== null && ($shipped || $receivedDate !== null)) {
-                $changes = [
-                    ...($shipped ? $builder->shipped($existing, $proposal->trackingNumbers) : []),
-                    ...($receivedDate !== null ? $builder->delivered($existing, $receivedDate) : []),
-                ];
-            } else {
-                throw new WriteException(__('this mail cannot be taken over', 'taxmail'));
-            }
-        } catch (WriteException $refusal) {
-            /* translators: %s: reason */
-            $this->notice(sprintf(__('Not taken: %s', 'taxmail'), $refusal->getMessage()));
-            $this->back(self::PAGE, []);
-        }
-
-        $written = $changes === [] ? [] : $model->write($changes);
-
-        if ($written instanceof WP_Error) {
-            /* translators: %s: the modeller's answer */
-            $this->notice(sprintf(__('Nothing was written: %s', 'taxmail'), $written->get_error_message()));
-            $this->back(self::PAGE, []);
-        }
-
-        foreach ($rows as $row) {
-            (new ProposalTable())->close((int) $row['id'], ProposalTable::IMPORTED, $written);
-            $this->moveMail($row, 'imported');
-        }
-
-        $this->notice(sprintf(
-            /* translators: 1: platform, 2: order number */
-            __('%1$s %2$s taken over.', 'taxmail'),
-            $proposal->platform,
-            $proposal->orderNumber
-        ));
-        $this->back(self::PAGE, []);
-    }
-
-    public function handleDiscard(): void
-    {
-        foreach ($this->reviewedRows() as $row) {
-            (new ProposalTable())->close((int) $row['id'], ProposalTable::DISCARDED);
-            $this->moveMail($row, 'discarded');
-        }
-
-        $this->back(self::PAGE, []);
     }
 
     public function handleSave(): void
@@ -421,9 +140,8 @@ final class Plugin
         ), in_array($schedule, Settings::SCHEDULES, true) ? $schedule : 'daily',
             // Each line is split on «|» by SortRules; sanitize_textarea_field keeps the line breaks.
             SortRules::fromText(isset($_POST['rules']) ? sanitize_textarea_field(wp_unslash($_POST['rules'])) : '')))->save();
-        self::schedule();
 
-        $this->back(self::SETTINGS_PAGE, ['saved' => '1']);
+        $this->back(self::PAGE, ['saved' => '1']);
     }
 
     /** Counts the senders in the inbox for the sorting rules (D-949); nothing is moved. */
@@ -432,13 +150,13 @@ final class Plugin
         $this->guard('taxmail_senders');
 
         try {
-            $senders = (new Mailbox(Settings::load()))->topSenders();
+            $senders = (new MailSource(Settings::load()))->topSenders();
             set_transient(self::SENDERS . get_current_user_id(), $senders, HOUR_IN_SECONDS);
         } catch (ImapException $failure) {
             set_transient(self::CHECK_RESULT . get_current_user_id(), ['ok' => false, 'error' => 'imap', 'detail' => $failure->getMessage()], 10 * MINUTE_IN_SECONDS);
         }
 
-        $this->back(self::SETTINGS_PAGE, []);
+        $this->back(self::PAGE, []);
     }
 
     public function handleCheck(): void
@@ -462,7 +180,7 @@ final class Plugin
         }
 
         set_transient(self::CHECK_RESULT . get_current_user_id(), $result, 10 * MINUTE_IN_SECONDS);
-        $this->back(self::SETTINGS_PAGE, []);
+        $this->back(self::PAGE, []);
     }
 
     /** CD-5, in this order: capability, then nonce. */
@@ -480,56 +198,6 @@ final class Plugin
     {
         wp_safe_redirect(add_query_arg($arguments, admin_url('admin.php?page=' . $page)));
         exit;
-    }
-
-    /**
-     * Capability, nonce of exactly this proposal, and the row must still be open — a second click does nothing.
-     *
-     * @return array<string, mixed>
-     */
-    /** @return non-empty-list<array<string, mixed>> the open rows of the reviewed order; `mixed` because these are database rows */
-    private function reviewedRows(): array
-    {
-        $ids = isset($_POST['proposals']) ? array_values(array_filter(array_map('absint', explode(',', (string) wp_unslash($_POST['proposals']))))) : [];
-        $this->guard(ReviewScreen::nonceAction($ids));
-        $rows = (new ProposalTable())->openRows($ids);
-
-        if ($rows === [] || count($rows) !== count($ids)) {
-            $this->notice(__('This proposal was already handled.', 'taxmail'));
-            $this->back(self::PAGE, []);
-        }
-
-        return $rows;
-    }
-
-    private function pickedLines(int $lineCount): array
-    {
-        $posted = isset($_POST['lines']) && is_array($_POST['lines']) ? array_map('absint', wp_unslash($_POST['lines'])) : [];
-
-        return array_values(array_filter(array_unique($posted), static fn (int $index): bool => $index < $lineCount));
-    }
-
-    /** @param array<string, mixed> $row */
-    private function moveMail(array $row, string $folderKey): void
-    {
-        try {
-            (new Mailbox(Settings::load()))->moveHandled($row, $folderKey);
-        } catch (ImapException $failure) {
-            /* translators: %s: the server's answer */
-            $this->notice(sprintf(__('Saved, but the mail could not be moved: %s', 'taxmail'), $failure->getMessage()));
-        }
-    }
-
-    /** @param array<string, mixed> $row */
-    private static function originNote(array $row, OrderProposal $proposal): string
-    {
-        return sprintf(
-            /* translators: 1: platform, 2: mail subject, 3: date */
-            __('From %1$s mail «%2$s», taken over %3$s.', 'taxmail'),
-            $proposal->platform,
-            (string) $row['subject'],
-            current_time('Y-m-d')
-        );
     }
 
     /**
@@ -551,48 +219,6 @@ final class Plugin
 
         return $message . '<p><code>' . esc_html(sprintf('%s (%s:%d)', strtok((string) ($error['message'] ?? ''), "\n"),
             basename((string) ($error['file'] ?? '')), (int) ($error['line'] ?? 0))) . '</code></p>';
-    }
-
-    /**
-     * A fatal error (memory, time limit) cannot be caught; WordPress then shows only «critical error» and the server
-     * log is not his to read. Leaves the message for the next page view instead.
-     *
-     * @param string $format translated, with one %s for the error
-     */
-    private function reportFatal(string $format): void
-    {
-        $started = microtime(true);
-
-        register_shutdown_function(function () use ($format, $started): void {
-            $error = error_get_last();
-
-            if ($error === null || ! in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
-                return;
-            }
-
-            $this->notice(sprintf($format, sprintf('%s (%s:%d; %.1f s, %d MB)', strtok($error['message'], "\n"), basename($error['file']),
-                $error['line'], microtime(true) - $started, intdiv(memory_get_peak_usage(true), 1048576))));
-            delete_transient(Mailbox::LOCK);
-        });
-    }
-
-    private function notice(string $text): void
-    {
-        $key = self::NOTICES . get_current_user_id();
-        $notices = get_transient($key);
-        $notices = is_array($notices) ? $notices : [];
-        $notices[] = $text;
-        set_transient($key, $notices, 10 * MINUTE_IN_SECONDS);
-    }
-
-    /** @return list<string> */
-    private function takeNotices(): array
-    {
-        $key = self::NOTICES . get_current_user_id();
-        $notices = get_transient($key);
-        delete_transient($key);
-
-        return is_array($notices) ? array_values(array_map('strval', $notices)) : [];
     }
 
     private static function folderName(mixed $value, string $fallback): string

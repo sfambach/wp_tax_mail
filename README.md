@@ -2,15 +2,15 @@
 
 Mail import for the [Taxonomy Modeller](https://github.com/sfambach/wp-taxonomy-modeler) (WordPress plugin).
 
-**Status: 0.0.22.** Needs the Taxonomy Modeller 0.1.31 or later: the proposal format (`OrderProposal`, `ProposalLine`, `ProposalKind`) and the vault for the password come from its core (D-952, D-953); without it the module stays off and says so. Fetching (WP-Cron, daily by default and adjustable in the settings, plus a button), the proposal table, the review page and writing through `taxmod/write-data` are built and tested against a local WordPress. Parsers for eBay, Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails; another module can switch a parser off (`taxmail_blocked_parsers`) or to status only (`taxmail_status_only_parsers`: its mails update orders but bring no new ones — tax_ebay does this for eBay once its API reads the purchases, D-950). Sorting rules (sender | subject | folder) and a sender count in the settings sort mails that are no order; a shop's mail without an order goes to «Verworfen». Connected to the Strato mailbox since 2026-10-20; the parsers are not yet checked on real mails. German translation in `languages/`. The draft concept (German) lives with the modeller:
+**Status: 0.1.0.** Needs the Taxonomy Modeller 0.1.36 or later; without it the module stays off and says so. Since 0.1.0 the mailbox is a *source* of the modeller's import inbox (D-952, D-953): proposals, the review page, merging, the duty table (which module brings a shop's orders, which only its status) and writing through `taxmod/write-data` are the modeller's; this module reads mails, hands over what a parser read, and sorts the mailbox. Proposals still open in the 0.0.x table are handed to the inbox once. Parsers for eBay, Reichelt, Mouser, Conrad, AliExpress and JLCPCB are ported from the Python importer in `legacy/` and checked against it on synthetic mails. Sorting rules (sender | subject | folder) and a sender count in the settings sort mails that are no order; a shop's mail without an order goes to «Verworfen». Connected to the Strato mailbox since 2026-10-20. German translation in `languages/`. The draft concept (German) lives with the modeller:
 [`docs/pakete/mail/konzept.md`](https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md).
 
 ## Idea in short
 
-- A WP-Cron job fetches new order mails from the purchasing mailbox over IMAP (pure PHP library, no `ext-imap`).
+- The modeller's schedule fetches new order mails from the purchasing mailbox over IMAP (pure PHP, no `ext-imap`).
 - One parser per shop (eBay, Mouser, Reichelt, Conrad, AliExpress, JLCPCB) turns a mail into an order proposal.
-- Proposals are stored by this module, not in the model. The owner reviews them and picks the line items to import.
-- Only the picked items are written, through the modeller's `taxmod/write-data` path.
+- Proposals go to the modeller's import inbox, not into the model. The owner reviews them and picks the line items.
+- Only the picked items are written, by the modeller, through `taxmod/write-data`; then the mail moves.
 - Independent of the stock module; it only fires WordPress actions that other modules may listen to.
 
 ## Tests
@@ -37,25 +37,24 @@ and creates the target folders that are missing.
 
 ## Use
 
-The first fetch only sets a starting point: older mails are not read. **Sort backlog** (settings page) then reads
-the older mails a slice per click: those whose order is already in the model move to «Importiert», those a parser
-can read become proposals, the rest stay in the inbox. **Start over from now** moves what the fetch sorted away («Nicht erkannt», «Verworfen») back to the
-inbox, forgets untaken proposals and sets the starting point anew. Testing the connection also subscribes the
-folders, so mail programs show them. **Fetch order** (review page) reads the inbox mails that mention one order
-number, also from before the starting point.
+Everything runs from *Taxonomy Modeller → Inbox*, the source «Mail»: **Fetch now**, **Sort the backlog**, **Fetch order** and
+**Start over from now**. How often the schedule fetches is set here, under *Mail import settings → Automatic fetch*.
 
-*Taxonomy Modeller → Mail import* lists every open order once — all its mails (confirmation, shipping, delivery,
-forwarded copies) folded into one proposal, the confirmation's items and amounts first. Untick what should not go into the
-model, then **Take** (writes the order and the ticked items in one act) or **Discard**. The mail then moves to the
-«Importiert» or «Verworfen» folder. Mails no parser knows go to «Nicht erkannt» right away.
-
-Target nodes and fields are ids in the option `taxmail_targets` (defaults: fambach.net, measured 2026-10-20).
+- The first fetch only sets a starting point: older mails are not read.
+- **Sort the backlog** reads the inbox from the oldest mail, a slice per click: mails whose order is already in the model move
+  to «Importiert», mails that could bring a new order become proposals, the sorting rules sort the rest, the remainder
+  stays in the inbox.
+- **Fetch order** reads the inbox mails that mention one order number, also from before the starting point.
+- **Start over from now** forgets the open proposals, moves what was sorted away («Nicht erkannt», «Verworfen») back to the
+  inbox and sets the starting point anew. «Importiert» stays.
+- Taking or discarding a proposal in the inbox moves its mail to «Importiert» or «Verworfen». A move that fails is
+  shown on the settings page as «Last problem».
 
 ## Extending
 
 A mail connection is a class implementing `TaxMail\Core\Parser\OrderMailParser`, announced through the
-`taxmail_parsers` filter. A module that takes over a shop (e.g. tax_ebay for eBay) adds the parser key to
-`taxmail_blocked_parsers`; that parser is then off.
+`taxmail_parsers` filter. Which module is responsible for a shop is set in the modeller's duty table
+(*Taxonomy Modeller → Configuration → Import*), not here.
 
 ## AI disclosure
 

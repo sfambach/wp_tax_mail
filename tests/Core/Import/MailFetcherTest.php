@@ -31,7 +31,7 @@ final class MailFetcherTest extends TestCase
             $script .= "* 1 FETCH (UID $uid BODY[] {" . strlen($raw) . "}\r\n$raw)\r\nA" . $tag++ . " OK\r\n";
         }
 
-        $fetched = (new MailFetcher(new ParserRegistry([self::shop()], ['shop' => true], [])))
+        $fetched = (new MailFetcher(new ParserRegistry([self::shop()], ['shop' => true])))
             ->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
 
         self::assertSame(
