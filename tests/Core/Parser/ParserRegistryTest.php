@@ -27,6 +27,14 @@ final class ParserRegistryTest extends TestCase
         self::assertNull($registry->parserFor(self::mail('service@mouser.com')));
     }
 
+    public function testStatusOnlyParserStillReads(): void
+    {
+        $registry = new ParserRegistry([self::parser('ebay', 'ebay.de')], ['ebay' => true], [], ['ebay']);
+
+        self::assertTrue($registry->isStatusOnly('ebay'));
+        self::assertSame('ebay', $registry->parserFor(self::mail('order@ebay.de'))?->key());
+    }
+
     private static function mail(string $from): MailMessage
     {
         return new MailMessage(1, $from, 'Bestellung', null, '', '');

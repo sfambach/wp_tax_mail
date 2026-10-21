@@ -24,7 +24,7 @@ use WP_Error;
  */
 final class Plugin
 {
-    public const VERSION     = '0.0.20';
+    public const VERSION     = '0.0.21';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const PAGE        = 'taxmail';
@@ -116,12 +116,12 @@ final class Plugin
             static fn (mixed $parser): bool => $parser instanceof OrderMailParser
         ));
 
-        // While tax_ebay is active its API reads eBay, so this mail parser stays off and never writes an eBay order too
-        // (D-942). Found by its plugin folder; the filter lets other modules block their shops the same way.
-        $taxEbayActive = array_filter((array) get_option('active_plugins', []), static fn (mixed $path): bool => preg_match('/tax[_-]ebay/i', (string) $path) === 1) !== [];
-        $blocked = array_values(array_map('strval', (array) apply_filters('taxmail_blocked_parsers', $taxEbayActive ? ['ebay'] : [])));
+        // Another module that takes over a shop says so: blocked, the parser is off; status only, its mails update
+        // orders but bring none (D-950 — tax_ebay signals «ebay» once its API reads the purchases).
+        $blocked = array_values(array_map('strval', (array) apply_filters('taxmail_blocked_parsers', [])));
+        $statusOnly = array_values(array_map('strval', (array) apply_filters('taxmail_status_only_parsers', [])));
 
-        return new ParserRegistry($parsers, $settings->parsers, $blocked);
+        return new ParserRegistry($parsers, $settings->parsers, $blocked, $statusOnly);
     }
 
     public function registerMenu(): void
@@ -146,7 +146,7 @@ final class Plugin
 
                 $model = ModelGateway::available() ? new ModelGateway(Targets::load()) : null;
                 try {
-                    print (new ReviewScreen(new ProposalTable(), $model))->render($notices);
+                    print (new ReviewScreen(new ProposalTable(), $model, self::registry(Settings::load())))->render($notices);
                 } catch (\Throwable $failure) {
                     print '<div class="wrap"><div class="notice notice-error"><p>' . esc_html(sprintf('%s: %s (%s:%d)', $failure::class,
                         $failure->getMessage(), basename($failure->getFile()), $failure->getLine())) . '</p></div></div>';
@@ -306,6 +306,10 @@ final class Plugin
 
             if ($existing instanceof WP_Error) {
                 throw new WriteException($existing->get_error_message());
+            }
+
+            if ($existing === null && self::registry(Settings::load())->isStatusOnly((string) $rows[0]['parser'])) {
+                throw new WriteException(__('another module brings the orders of this shop; its mails only update them', 'taxmail'));
             }
 
             if ($existing === null && $proposal->lines !== []) {

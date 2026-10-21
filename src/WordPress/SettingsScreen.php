@@ -42,6 +42,7 @@ final class SettingsScreen
                     . checked($settings->parsers[$key] ?? false, true, false) . disabled($blocked, true, false) . '> '
                     . esc_html($parser->shopName()) . '</label></td><td>'
                     . ($blocked ? esc_html__('off — another module handles this shop', 'taxmail') : '')
+                    . ($registry->isStatusOnly($key) ? esc_html__('status only — another module brings the orders', 'taxmail') : '')
                     . '</td></tr>';
             }
 

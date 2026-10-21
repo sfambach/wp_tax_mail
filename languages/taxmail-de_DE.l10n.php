@@ -7,6 +7,7 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     '%1$s: %2$d mails found, %3$d new; %4$d read, %5$d not recognised, %6$d failed.' => '%1$s: %2$d Mails gefunden, %3$d neu; %4$d gelesen, %5$d nicht erkannt, %6$d fehlgeschlagen.',
     'A password is stored encrypted. Leave empty to keep it.' => 'Ein Passwort ist verschlüsselt gespeichert. Leer lassen, um es zu behalten.',
     'Already in the model: record %d.' => 'Schon im Modell: Satz %d.',
+    'Another module brings the orders of this shop; this mail only updates an order that is in the model.' => 'Ein anderes Modul liefert die Bestellungen dieses Shops; diese Mail aktualisiert nur eine Bestellung, die schon im Modell ist.',
     'Article no.' => 'Artikelnr.',
     'Automatic fetch' => 'Automatischer Abruf',
     'Backlog' => 'Altbestand',
@@ -87,6 +88,7 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     'Tracking: %s' => 'Sendungsnummer: %s',
     'User' => 'Benutzer',
     'You may not change the mail import.' => 'Du darfst den Mail-Import nicht ändern.',
+    'another module brings the orders of this shop; its mails only update them' => 'ein anderes Modul liefert die Bestellungen dieses Shops; seine Mails aktualisieren sie nur',
     'cancelled' => 'storniert',
     'delivered' => 'zugestellt',
     'every hour' => 'stündlich',
@@ -101,6 +103,7 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     'run "composer install" in the plugin folder — the autoloader is missing.' => 'im Plugin-Ordner „composer install“ ausführen – der Autoloader fehlt.',
     'shipped' => 'versendet',
     'sold' => 'verkauft',
+    'status only — another module brings the orders' => 'nur Status — ein anderes Modul liefert die Bestellungen',
     'this mail cannot be taken over' => 'diese Mail lässt sich nicht übernehmen',
     'twice a day' => 'zweimal täglich',
 ]];

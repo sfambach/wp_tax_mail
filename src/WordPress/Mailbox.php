@@ -173,7 +173,8 @@ final class Mailbox
             $cursor = $crashed ?? $cursor;
             $end = (int) $state['last_uid'];
             $pending = array_values(array_filter($client->uidsAfter($cursor), static fn (int $uid): bool => $uid <= $end));
-            $fetcher = new MailFetcher(Plugin::registry($this->settings));
+            $registry = Plugin::registry($this->settings);
+            $fetcher = new MailFetcher($registry);
             $target = FolderPlan::onServer($this->folder('imported'), $client->delimiter());
             $started = microtime(true);
             $checked = 0;
@@ -220,7 +221,8 @@ final class Mailbox
                     $client->move($uid, $target);
                     $moved++;
                 } elseif ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->lines !== []
-                    && ! in_array($proposal->kind, [ProposalKind::Sold, ProposalKind::Refunded, ProposalKind::Cancelled], true)) {
+                    && ! in_array($proposal->kind, [ProposalKind::Sold, ProposalKind::Refunded, ProposalKind::Cancelled], true)
+                    && ! $registry->isStatusOnly((string) $result->parserKey)) {
                     // Only what could become a new order: years of sale and refund mails would bury the page.
                     $this->table->forgetUnread($result->mail->messageId);
 

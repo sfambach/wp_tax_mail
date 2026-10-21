@@ -2,6 +2,7 @@
 
 namespace TaxMail\WordPress;
 
+use TaxMail\Core\Parser\ParserRegistry;
 use TaxMail\Core\Proposal\OrderProposal;
 use TaxMail\Core\Proposal\ProposalKind;
 use TaxMail\Core\Proposal\ProposalMerger;
@@ -18,6 +19,7 @@ final class ReviewScreen
     public function __construct(
         private readonly ProposalTable $table,
         private readonly ?ModelGateway $model,
+        private readonly ?ParserRegistry $registry = null,
     ) {
     }
 
@@ -118,7 +120,8 @@ final class ReviewScreen
         $lines = (array) ($data['lines'] ?? []);
         // Any mail with items can bring an order the model does not have yet — a shipping mail (JLCPCB, Mouser), an
         // AliExpress status mail, an eBay invoice — as the Python importer did; sales and refunds cannot.
-        $asNewOrder = ! $existing instanceof ExistingOrder && $lines !== []
+        $statusOnly = $this->registry?->isStatusOnly((string) $rows[0]['parser']) ?? false;
+        $asNewOrder = ! $existing instanceof ExistingOrder && $lines !== [] && ! $statusOnly
             && in_array($kind, [ProposalKind::Ordered, ProposalKind::Shipped, ProposalKind::Delivered, ProposalKind::Other, ProposalKind::Invoice], true);
         $rowKinds = array_map(static fn (array $row): ?ProposalKind => ProposalKind::tryFrom((string) $row['kind']), $rows);
         $canTake = $this->model !== null && ($asNewOrder || (
@@ -134,6 +137,8 @@ final class ReviewScreen
                 $data['total'] ?? '–',
                 $data['currency'] ?? ''
             )) . '</p>';
+        } elseif (! $existing instanceof ExistingOrder && $statusOnly) {
+            $html .= '<p>' . esc_html__('Another module brings the orders of this shop; this mail only updates an order that is in the model.', 'taxmail') . '</p>';
         } elseif (! $existing instanceof ExistingOrder && $kind !== ProposalKind::Ordered) {
             $html .= '<p>' . esc_html__('The order is not in the model, so there is nothing to add this to.', 'taxmail') . '</p>';
         }
