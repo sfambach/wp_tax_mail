@@ -19,6 +19,8 @@ eml('j1','Stefan <stefan@example.de>','Fwd: Order',
     ['-------- Forwarded Message --------','Subject: Your Order W202410151234567 Review Completed','Date: Tue, 15 Oct 2024 08:00:00 +0000','From: JLCPCB <support@jlcpcb.com>','To: einkauf@example.de','【W202410151234567】','isa8_multi_io_gerber_Y87','Approved','backplane-rev2','Approved','View order'])
 eml('j2','Stefan <stefan@example.de>','Fwd: Order',
     ['-------- Forwarded Message --------','Subject: Your order W202410151234567 is On Its Way','Date: Mon, 21 Oct 2024 08:00:00 +0000','From: JLCPCB <support@jlcpcb.com>','To: einkauf@example.de','Ready for pick up by DHL Express. Tracking Number: 1234567890','Items in this shipment','isa8_multi_io_gerber_Y87','5 pcs','backplane-rev2(Reorder)','10 pcs','View order'])
+eml('a2','AliExpress <transaction@notice.aliexpress.com>','Bestellung 8123456789012345678: Bestellung versandt',
+    ['Bestellung 8123456789012345678','Ihr Paket ist unterwegs','Sendungsnummer: LP00123456789012','ESP32 DevKit','x3'], date='Mon, 21 Oct 2024 09:00:00 +0200')
 E='eBay <ebay@ebay.com>'
 eml('e1',E,'Bestellung bestätigt: ISA Floppy Controller',
     ['Danke für Ihren Kauf','ISA 8-bit Floppy Multi-I/O Controller Zilog','Preis:','EUR 45,00','Artikelnr.:','123456789012','Lieferung ca.:','Fr, 18. Okt','Bestellnummer:','27-13610-49402','Verkäufer:','r-o-r-c','Gesamtbetrag:','Zwischensumme (1 Artikel)','EUR 45,00','Versand','EUR 6,99','Gesamtbetrag wird abgebucht','EUR 51,99','eBay-Käuferschutz'])

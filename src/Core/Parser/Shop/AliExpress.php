@@ -10,7 +10,8 @@ use Taxmod\Core\Import\OrderProposal;
 use Taxmod\Core\Import\ProposalKind;
 
 /**
- * AliExpress: mails about one order number — so far only «auf Bestätigung wird gewartet» (title, quantity, order sum).
+ * AliExpress: mails about one order number — «Bestellauftrag bestätigt» / «auf Bestätigung wird gewartet» (title, quantity,
+ * order sum), «versandt» and «zugestellt» (status, tracking number if the mail names one).
  * Port of legacy/kaeufe-import/kaeufe_import/shops/aliexpress.py.
  */
 final class AliExpress implements OrderMailParser
@@ -48,10 +49,22 @@ final class AliExpress implements OrderMailParser
         }
 
         $total = Text::after($lines, 'Bestellsumme');
+        $subject = mb_strtolower($mail->subject);
         // «Bestellauftrag bestätigt» is the order confirmation; «auf Bestätigung wird gewartet» only says it is on its way.
-        $kind = str_contains($mail->subject, 'bestätigt') ? ProposalKind::Ordered : ProposalKind::Other;
+        $kind = match (true) {
+            str_contains($subject, 'zugestellt') || str_contains($subject, 'geliefert') => ProposalKind::Delivered,
+            str_contains($subject, 'versandt') || str_contains($subject, 'versendet') => ProposalKind::Shipped,
+            str_contains($subject, 'bestätigt') => ProposalKind::Ordered,
+            default => ProposalKind::Other,
+        };
+        // A status mail is dated by when it was sent, not when the order was placed; giving that date as the order date
+        // made every shipping notice propose a wrong change.
+        $orderDate = $kind === ProposalKind::Ordered || $kind === ProposalKind::Other ? $mail->date?->format('Y-m-d') : null;
+        $tracking = preg_match('/(?:Sendungsnummer|Tracking-?Nummer|Tracking number)\s*:?\s*([A-Z0-9]{8,})/i', $mail->text, $found) === 1
+            ? [$found[1]] : [];
 
-        return new OrderProposal($this->shopName(), $match[1], $kind, $mail->date?->format('Y-m-d'), 'EUR', $items->lines(),
-            null, $total === null ? null : Text::decimal(Text::money($total)[0]));
+        return new OrderProposal($this->shopName(), $match[1], $kind, $orderDate, 'EUR', $items->lines(),
+            null, $total === null ? null : Text::decimal(Text::money($total)[0]),
+            shippedDate: $kind === ProposalKind::Shipped ? $mail->date?->format('Y-m-d') : null, trackingNumbers: $tracking);
     }
 }

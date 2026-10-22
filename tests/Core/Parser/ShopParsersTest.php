@@ -134,6 +134,14 @@ final class ShopParsersTest extends TestCase
         self::assertSame([3.0, 2.0], array_column($order['lines'], 'quantity'));
     }
 
+    public function testAliExpressShippedCarriesNoOrderDate(): void
+    {
+        $order = self::read('a2');
+
+        self::assertSame(['8123456789012345678', 'shipped', null, '2024-10-21'], [$order['order_number'], $order['kind'], $order['order_date'], $order['shipped_date']]);
+        self::assertSame(['LP00123456789012'], $order['tracking']);
+    }
+
     public function testJlcpcbReviewAndShippingThroughForwarding(): void
     {
         $review = self::read('j1');
