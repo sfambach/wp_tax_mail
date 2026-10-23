@@ -10,7 +10,8 @@ use Taxmod\Core\Import\SecretBox;
 use Taxmod\WordPress\Import\Vault;
 
 /**
- * The module's settings in one option: which parsers are on, the folder names, the schedule, the sorting rules. The mailbox account sits in
+ * The module's settings in one option: which parsers are on, the folder names, the sorting rules. How often it fetches
+ * is the modeller's field since D-981. The mailbox account sits in
  * an option of its own with the password sealed (his word 2026-10-20: «ja verschlüsselt einbauen»); constants in
  * wp-config.php still win, for whoever prefers to keep it out of the database entirely.
  */
@@ -20,16 +21,12 @@ final class Settings
 
     public const ACCOUNT_OPTION = 'taxmail_mailbox';
 
-    /** WP-Cron recurrences he can pick; '' switches the automatic fetch off (his word 2026-10-20: «einstellbar»). */
-    public const SCHEDULES = ['', 'hourly', 'twicedaily', 'daily'];
-
     /**
      * @param array<string, bool> $parsers
      */
     public function __construct(
         public readonly array $parsers,
         public readonly FolderPlan $folders,
-        public readonly string $schedule = 'daily',
         public readonly SortRules $rules = new SortRules(),
     ) {
     }
@@ -49,7 +46,6 @@ final class Settings
                 (string) ($folders['discarded'] ?? $defaults->discarded),
                 (string) ($folders['unrecognised'] ?? $defaults->unrecognised),
             ),
-            in_array($stored['schedule'] ?? 'daily', self::SCHEDULES, true) ? (string) ($stored['schedule'] ?? 'daily') : 'daily',
             new SortRules(array_values(array_map(
                 static fn (array $rule): SortRule => new SortRule((string) ($rule[0] ?? ''), (string) ($rule[1] ?? ''), (string) ($rule[2] ?? '')),
                 array_filter(is_array($stored['rules'] ?? null) ? $stored['rules'] : [], 'is_array')
@@ -67,8 +63,7 @@ final class Settings
                 'discarded'    => $this->folders->discarded,
                 'unrecognised' => $this->folders->unrecognised,
             ],
-            'schedule' => $this->schedule,
-            'rules'    => array_map(static fn (SortRule $rule): array => [$rule->sender, $rule->subject, $rule->folder], $this->rules->rules),
+            'rules'   => array_map(static fn (SortRule $rule): array => [$rule->sender, $rule->subject, $rule->folder], $this->rules->rules),
         ], false);
     }
 
@@ -136,6 +131,12 @@ final class Settings
         $sealed = $password === '' ? self::storedAccount()['sealed'] : self::box()->seal($password);
 
         update_option(self::ACCOUNT_OPTION, ['host' => $host, 'port' => $port, 'user' => $user, 'password' => $sealed], false);
+    }
+
+    /** «Delete access data» (D-981); the constants in wp-config.php are not the plugin's to remove. */
+    public static function forgetAccount(): void
+    {
+        delete_option(self::ACCOUNT_OPTION);
     }
 
     /** The modeller's vault (D-951); the context is the one tax_mail sealed with before, so stored passwords still open. */

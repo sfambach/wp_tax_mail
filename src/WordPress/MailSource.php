@@ -65,8 +65,6 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
     /** Mails «Bestellung holen» reads at most. */
     private const SEARCH_LIMIT = 20;
 
-    private const INTERVALS = ['' => 0, 'hourly' => HOUR_IN_SECONDS, 'twicedaily' => 12 * HOUR_IN_SECONDS, 'daily' => DAY_IN_SECONDS];
-
     public function __construct(private readonly Settings $settings)
     {
     }
@@ -81,9 +79,10 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         return __('Mail', 'taxmail');
     }
 
+    /** Only the default: his choice is the modeller's «Fetch interval» (D-981); 0 without a mailbox keeps the fetch off. */
     public function interval(): int
     {
-        return Settings::credentials() === null ? 0 : self::INTERVALS[$this->settings->schedule] ?? DAY_IN_SECONDS;
+        return Settings::credentials() === null ? 0 : DAY_IN_SECONDS;
     }
 
     /**

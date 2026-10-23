@@ -13,24 +13,29 @@ use TaxMail\Core\Parser\ParserRegistry;
 use TaxMail\Core\Parser\ShippedParsers;
 use Taxmod\Core\Import\BacklogSource;
 use Taxmod\WordPress\Admin\SettingsScreen as ConfigurationScreen;
+use Taxmod\WordPress\Import\FetchInterval;
 use Taxmod\WordPress\Import\InboxScreen;
 use Taxmod\WordPress\Import\Sources;
 
 /**
  * The boundary: registers the mailbox as a source of the modeller's inbox (D-953) and its settings as the tab «Mail» of
- * the modeller's Configuration page (D-945) — account, parsers, folders, sorting rules, the connection test. It wires WordPress to the core and decides nothing.
+ * the modeller's Configuration page (D-945) in the modeller's order: access, fetching, settings (D-981). It wires
+ * WordPress to the core and decides nothing.
  *
  * @see https://github.com/sfambach/wp-taxonomy-modeler/blob/main/docs/pakete/mail/konzept.md
  */
 final class Plugin
 {
-    public const VERSION     = '0.1.4';
+    public const VERSION     = '0.2.0';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
 
-    /** Where the last connection test's outcome waits for the redirect — per user, ten minutes. */
-    private const CHECK_RESULT = 'taxmail_check_';
+    /** Why the last sender count failed, for the redirect — per user, ten minutes. */
+    private const SENDERS_FAILURE = 'taxmail_senders_failure_';
+
+    /** Set once the 0.1.x «schedule» setting has become the modeller's fetch interval (D-981). */
+    private const INTERVAL_MOVED = 'taxmail_interval_moved';
 
     /** The last sender count per user, shown beside the sorting rules. */
     public const SENDERS = 'taxmail_senders_';
@@ -44,7 +49,7 @@ final class Plugin
         add_action('plugins_loaded', static function () use ($plugin, $file): void {
             if (! self::modellerReady()) {
                 add_action('admin_notices', static fn () => print '<div class="notice notice-error"><p><strong>Taxmod Mail:</strong> '
-                    . esc_html__('needs the Taxonomy Modeller 0.1.36 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
+                    . esc_html__('needs the Taxonomy Modeller 0.1.49 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
 
                 return;
             }
@@ -55,7 +60,7 @@ final class Plugin
 
     public static function modellerReady(): bool
     {
-        return interface_exists(BacklogSource::class) && class_exists(Sources::class);
+        return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class);
     }
 
     private function hook(string $file): void
@@ -64,10 +69,10 @@ final class Plugin
 
         add_action('init', static fn () => load_plugin_textdomain('taxmail', false, dirname(plugin_basename($file)) . '/languages'));
         add_action('admin_init', LegacyProposals::moveOnce(...));
+        add_action('admin_init', self::moveIntervalOnce(...));
         add_filter(Sources::FILTER, static fn (array $sources): array => [...$sources, new MailSource(Settings::load())]);
         // After the modeller's own «Import» tab.
         add_filter(ConfigurationScreen::TABS_FILTER, $plugin->registerTab(...), 20);
-        add_action('admin_post_taxmail_check', $plugin->handleCheck(...));
         add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
         add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
     }
@@ -92,18 +97,22 @@ final class Plugin
      */
     public function registerTab(array $tabs): array
     {
+        $inboxUrl = admin_url('admin.php?page=' . InboxScreen::PAGE);
         $tabs[self::TAB] = [
-            'title'   => __('Mail', 'taxmail'),
-            'version' => self::VERSION,
-            'render'  => static function (): string {
-                $user = get_current_user_id();
-                $result = get_transient(self::CHECK_RESULT . $user);
-                delete_transient(self::CHECK_RESULT . $user);
+            'title'       => __('Mail', 'taxmail'),
+            'version'     => self::VERSION,
+            'source'      => MailSource::KEY,
+            'credentials' => static fn (): string => SettingsScreen::account(),
+            'test'        => self::test(...),
+            'forget'      => Settings::accountInConfig() ? null : Settings::forgetAccount(...),
+            'render'      => static function () use ($inboxUrl): string {
+                $failure = get_transient(self::SENDERS_FAILURE . get_current_user_id());
+                delete_transient(self::SENDERS_FAILURE . get_current_user_id());
 
-                return (new SettingsScreen())->render(Settings::load(), is_array($result) ? $result : null, admin_url('admin.php?page=' . InboxScreen::PAGE));
+                return (new SettingsScreen())->render(Settings::load(), is_string($failure) ? $failure : '', $inboxUrl);
             },
-            'save'    => $this->save(...),
-            'guide'   => static fn (): string => SettingsScreen::guide(admin_url('admin.php?page=' . InboxScreen::PAGE)),
+            'save'        => $this->save(...),
+            'guide'       => static fn (): string => SettingsScreen::guide($inboxUrl),
         ];
 
         return $tabs;
@@ -129,8 +138,6 @@ final class Plugin
         $folder = static fn (string $key, string $fallback): string => self::folderName($folders[$key] ?? '', $fallback);
         $defaults = $settings->folders;
 
-        $schedule = isset($post['schedule']) ? sanitize_key((string) $post['schedule']) : 'daily';
-
         if (! Settings::accountInConfig() && isset($post['account']) && is_array($post['account'])) {
             $account = $post['account'];
             $port = absint($account['port'] ?? 993);
@@ -147,7 +154,7 @@ final class Plugin
             $folder('imported', $defaults->imported),
             $folder('discarded', $defaults->discarded),
             $folder('unrecognised', $defaults->unrecognised),
-        ), in_array($schedule, Settings::SCHEDULES, true) ? $schedule : 'daily',
+        ),
             // Each line is split on «|» by SortRules; sanitize_textarea_field keeps the line breaks.
             SortRules::fromText(isset($post['rules']) ? sanitize_textarea_field((string) $post['rules']) : '')))->save();
     }
@@ -161,34 +168,67 @@ final class Plugin
             $senders = (new MailSource(Settings::load()))->topSenders();
             set_transient(self::SENDERS . get_current_user_id(), $senders, HOUR_IN_SECONDS);
         } catch (ImapException $failure) {
-            set_transient(self::CHECK_RESULT . get_current_user_id(), ['ok' => false, 'error' => 'imap', 'detail' => $failure->getMessage()], 10 * MINUTE_IN_SECONDS);
+            set_transient(self::SENDERS_FAILURE . get_current_user_id(), $failure->getMessage(), 10 * MINUTE_IN_SECONDS);
         }
 
         $this->back();
     }
 
-    public function handleCheck(): void
+    /**
+     * «Test connection» (D-981): the modeller calls it after saving what was just entered and shows the sentence. It
+     * logs in, creates the missing folders and says what it found.
+     */
+    public static function test(): string
     {
-        $this->guard('taxmail_check');
-
         $credentials = Settings::credentials();
 
         if ($credentials === null) {
-            $result = ['ok' => false, 'error' => 'no_credentials'];
-        } else {
-            try {
-                $client = new ImapClient(new TlsSocketStream($credentials['host'], $credentials['port']));
-                $client->login($credentials['user'], $credentials['password']);
-                $settings = Settings::load();
-                $result = ['ok' => true] + (new ConnectionCheck($settings->folders, $settings->rules->folders($settings->folders)))->run($client);
-                $client->logout();
-            } catch (ImapException $failure) {
-                $result = ['ok' => false, 'error' => 'imap', 'detail' => $failure->getMessage()];
-            }
+            return __('No mailbox yet — enter server, user and password, then test again.', 'taxmail');
         }
 
-        set_transient(self::CHECK_RESULT . get_current_user_id(), $result, 10 * MINUTE_IN_SECONDS);
-        $this->back();
+        try {
+            $client = new ImapClient(new TlsSocketStream($credentials['host'], $credentials['port']));
+            $client->login($credentials['user'], $credentials['password']);
+            $settings = Settings::load();
+            $check = (new ConnectionCheck($settings->folders, $settings->rules->folders($settings->folders)))->run($client);
+            $client->logout();
+        } catch (ImapException $failure) {
+            /* translators: %s: the server's answer */
+            return sprintf(__('Connection failed: %s', 'taxmail'), $failure->getMessage());
+        }
+
+        $sentences = [
+            /* translators: %d: number of mails in the inbox */
+            sprintf(__('Connected. %d mails in the inbox.', 'taxmail'), $check['inbox_count']),
+            $check['can_move'] ? __('The server can move mails.', 'taxmail') : __('The server can neither MOVE nor UIDPLUS — mails cannot be sorted into folders.', 'taxmail'),
+        ];
+
+        if ($check['created'] !== []) {
+            /* translators: %s: folder names */
+            $sentences[] = sprintf(__('Folders created: %s.', 'taxmail'), implode(', ', $check['created']));
+        }
+
+        return implode(' ', $sentences);
+    }
+
+    /**
+     * 0.1.x kept «how often» in its own settings; the modeller owns that field now (D-981). His choice is carried over
+     * once, «never» as «off», so updating changes nothing he set.
+     */
+    public static function moveIntervalOnce(): void
+    {
+        if (get_option(self::INTERVAL_MOVED) !== false) {
+            return;
+        }
+
+        $stored = get_option(Settings::OPTION, []);
+        $schedule = is_array($stored) && isset($stored['schedule']) ? (string) $stored['schedule'] : null;
+
+        if ($schedule !== null && $schedule !== 'daily') {
+            FetchInterval::save(MailSource::KEY, $schedule === '' ? 'off' : $schedule);
+        }
+
+        update_option(self::INTERVAL_MOVED, self::VERSION, false);
     }
 
     /** CD-5, in this order: capability, then nonce. */

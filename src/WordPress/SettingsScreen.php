@@ -3,15 +3,15 @@
 namespace TaxMail\WordPress;
 
 /**
- * The «Mail» tab on the modeller's Configuration page (D-945): mailbox, parsers on/off, schedule, sorting rules, folder
- * names, and the connection test. The page wraps it in its form and adds the Save button; the two actions here are
- * links, since a form cannot hold another. Fetching, the backlog, the search and starting over are buttons in the
- * modeller's inbox (D-953). Returns its HTML (CD-8).
+ * The «Mail» tab on the modeller's Configuration page (D-945). The page draws one order for every module (D-981): the
+ * mailbox fields from account() under «Access» with Save, «Test connection» and «Delete access data», then the fetch
+ * interval, then render() — parsers on/off, sorting rules, folder names. «Count senders» is a link, since a form cannot
+ * hold another. Fetching, the backlog, the search and starting over are buttons in the modeller's inbox (D-953).
+ * Returns its HTML (CD-8).
  */
 final class SettingsScreen
 {
-    /** @param array<string, mixed>|null $check the last connection test; `mixed` because its fields differ by outcome */
-    public function render(Settings $settings, ?array $check, string $inboxUrl): string
+    public function render(Settings $settings, string $sendersFailure, string $inboxUrl): string
     {
         $registry = Plugin::registry($settings);
         // Title and version are drawn by the Configuration page (D-968).
@@ -28,9 +28,6 @@ final class SettingsScreen
             esc_html__('Proposals, fetching, the backlog, «fetch an order» and starting over are on the page %s of the Taxonomy Modeller.', 'taxmail'),
             '<a href="' . esc_url($inboxUrl) . '">' . esc_html__('Inbox', 'taxmod') . '</a>'
         ) . '</p>';
-
-        $html .= $this->connection($check);
-        $html .= $this->account();
 
         $html .= '<h2>' . esc_html__('Mail connections', 'taxmail') . '</h2>';
 
@@ -49,21 +46,7 @@ final class SettingsScreen
             $html .= '</tbody></table>';
         }
 
-        $html .= '<h2>' . esc_html__('Automatic fetch', 'taxmail') . '</h2><p><label for="taxmail-schedule">'
-            . esc_html__('Fetch new mails', 'taxmail') . '</label> <select id="taxmail-schedule" name="schedule">';
-
-        foreach ([
-            ''           => __('never (button in the inbox only)', 'taxmail'),
-            'hourly'     => __('every hour', 'taxmail'),
-            'twicedaily' => __('twice a day', 'taxmail'),
-            'daily'      => __('once a day', 'taxmail'),
-        ] as $value => $label) {
-            $html .= '<option value="' . esc_attr($value) . '"' . selected($settings->schedule, $value, false) . '>' . esc_html($label) . '</option>';
-        }
-
-        $html .= '</select></p>';
-
-        $html .= $this->rules($settings);
+        $html .= $this->rules($settings, $sendersFailure);
 
         $html .= '<h2>' . esc_html__('Folders', 'taxmail') . '</h2><table class="form-table" role="presentation">';
 
@@ -81,13 +64,21 @@ final class SettingsScreen
     }
 
     /** The sorting rules (D-949) as one line each, and beside them the senders counted in the inbox. */
-    private function rules(Settings $settings): string
+    private function rules(Settings $settings, string $sendersFailure): string
     {
         $html = '<h2>' . esc_html__('Sorting rules', 'taxmail') . '</h2><p>'
             . esc_html__('One rule per line: sender | subject | folder. Sender and subject are pieces of text, one of them may stay empty. «Verworfen» and «Nicht erkannt» mean the folders below; any other name is a folder of your own, created when needed. Rules only sort mails that are no order; shop mails without an order (advertising, your own sales) go to «Verworfen» anyway. Nothing is ever deleted.', 'taxmail')
             . '</p><p><label for="taxmail-rules" class="screen-reader-text">' . esc_html__('Sorting rules', 'taxmail') . '</label>'
             . '<textarea id="taxmail-rules" name="rules" rows="8" class="large-text code" placeholder="newsletter@shop.example | | Verworfen&#10;| Ihr Paket | Taxmod/Versand">'
             . esc_textarea($settings->rules->toText()) . '</textarea></p>';
+
+        $html .= '<p>' . esc_html__('«Count senders» counts who sent the mails in the inbox, as a help for the rules. Nothing is moved.', 'taxmail')
+            . ' ' . self::actionLink('taxmail_senders', __('Count senders', 'taxmail')) . '</p>';
+
+        if ($sendersFailure !== '') {
+            /* translators: %s: the server's answer */
+            $html .= '<div class="notice notice-error inline"><p>' . esc_html(sprintf(__('Connection failed: %s', 'taxmail'), $sendersFailure)) . '</p></div>';
+        }
 
         $senders = get_transient(Plugin::SENDERS . get_current_user_id());
 
@@ -108,12 +99,11 @@ final class SettingsScreen
         return $html;
     }
 
-    private function account(): string
+    /** The mailbox fields; the page draws them under «Access», with its buttons beneath (D-981). */
+    public static function account(): string
     {
-        $html = '<h2>' . esc_html__('Mailbox', 'taxmail') . '</h2>';
-
         if (Settings::accountInConfig()) {
-            return $html . '<p>' . esc_html__('The mailbox is set in wp-config.php (TAXMAIL_IMAP_* constants).', 'taxmail') . '</p>';
+            return '<p>' . esc_html__('The mailbox is set in wp-config.php (TAXMAIL_IMAP_* constants).', 'taxmail') . '</p>';
         }
 
         $account = Settings::storedAccount();
@@ -123,7 +113,7 @@ final class SettingsScreen
             default                   => __('The stored password can no longer be decrypted (the WordPress salts changed). Enter it again.', 'taxmail'),
         };
 
-        $html .= '<table class="form-table" role="presentation">';
+        $html = '<table class="form-table" role="presentation">';
 
         foreach ([
             'host' => [__('IMAP server', 'taxmail'), 'text', $account['host'], 'imap.example.com'],
@@ -141,33 +131,15 @@ final class SettingsScreen
         return $html;
     }
 
-    /** @param array<string, mixed>|null $check */
-    private function connection(?array $check): string
-    {
-        $html = '<h2>' . esc_html__('Connection', 'taxmail') . '</h2>';
-
-        if ($check !== null) {
-            $html .= $check['ok'] ? $this->success($check) : $this->failure($check);
-        }
-
-        $html .= '<p>' . self::actionLink('taxmail_check', __('Test connection', 'taxmail')) . '</p>';
-
-        $html .= '<h2>' . esc_html__('Senders', 'taxmail') . '</h2><p>'
-            . esc_html__('Counts who sent the mails in the inbox, as a help for the sorting rules. Nothing is moved.', 'taxmail')
-            . '</p><p>' . self::actionLink('taxmail_senders', __('Count senders', 'taxmail')) . '</p>';
-
-        return $html;
-    }
-
     /** The steps from an empty mailbox to the first proposal, for the box beside the form (D-963). */
     public static function guide(string $inboxUrl): string
     {
         $steps = [
             esc_html__('Use one mailbox for purchases only, and let shops send their order mails there (or forward them).', 'taxmail'),
             esc_html__('Look up the IMAP server of your mail provider, with SSL on port 993 — for Strato: imap.strato.de.', 'taxmail'),
-            esc_html__('Enter server, port, user (the full address) and password under «Mailbox», then Save. The password is stored encrypted.', 'taxmail'),
-            esc_html__('Click «Test connection». It logs in and creates the folders «Importiert», «Verworfen» and «Nicht erkannt».', 'taxmail'),
-            esc_html__('Tick the shops under «Mail connections», choose how often to fetch, and Save.', 'taxmail'),
+            esc_html__('Enter server, port, user (the full address) and password under «Access», then Save. The password is stored encrypted.', 'taxmail'),
+            esc_html__('Click «Test connection» beneath them. It logs in and creates the folders «Importiert», «Verworfen» and «Nicht erkannt».', 'taxmail'),
+            esc_html__('Choose how often to fetch under «Fetching», tick the shops under «Mail connections», and Save.', 'taxmail'),
             sprintf(
                 /* translators: %s: link to the modeller's inbox */
                 esc_html__('Open the %s and click «Fetch now». Older mails come with «Sort the backlog».', 'taxmail'),
@@ -183,43 +155,5 @@ final class SettingsScreen
     {
         return '<a class="button button-secondary" href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=' . $action), $action)) . '">'
             . esc_html($label) . '</a>';
-    }
-
-    /** @param array<string, mixed> $check */
-    private function success(array $check): string
-    {
-        $lines = [
-            sprintf(
-                /* translators: %d: number of mails in the inbox */
-                esc_html__('Connected. %d mails in the inbox.', 'taxmail'),
-                (int) $check['inbox_count']
-            ),
-            $check['can_move']
-                ? esc_html__('The server can move mails.', 'taxmail')
-                : esc_html__('The server can neither MOVE nor UIDPLUS — mails cannot be sorted into folders.', 'taxmail'),
-        ];
-
-        foreach ((array) $check['created'] as $folder) {
-            /* translators: %s: folder name */
-            $lines[] = sprintf(esc_html__('Folder created: %s', 'taxmail'), esc_html((string) $folder));
-        }
-
-        foreach ((array) $check['present'] as $folder) {
-            /* translators: %s: folder name */
-            $lines[] = sprintf(esc_html__('Folder present: %s', 'taxmail'), esc_html((string) $folder));
-        }
-
-        return '<div class="notice notice-' . ($check['can_move'] ? 'success' : 'warning') . ' inline"><p>' . implode('<br>', $lines) . '</p></div>';
-    }
-
-    /** @param array<string, mixed> $check */
-    private function failure(array $check): string
-    {
-        $text = $check['error'] === 'no_credentials'
-            ? esc_html__('No mailbox configured yet — fill in the mailbox fields below and save.', 'taxmail')
-            /* translators: %s: the server's answer */
-            : sprintf(esc_html__('Connection failed: %s', 'taxmail'), esc_html((string) ($check['detail'] ?? '')));
-
-        return '<div class="notice notice-error inline"><p>' . $text . '</p></div>';
     }
 }
