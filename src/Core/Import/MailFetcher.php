@@ -74,7 +74,16 @@ final class MailFetcher
 
         $outcome = $proposal->kind === ProposalKind::NoReceipt ? FetchOutcome::NoReceipt : FetchOutcome::Proposed;
         // The shared format names its source and the source's own id (D-953); the parsers need not know.
-        $proposal = OrderProposal::fromArray(['source' => 'mail', 'external_id' => $mail->messageId !== '' ? $mail->messageId : null] + $proposal->toArray());
+        $row = ['source' => 'mail', 'external_id' => $mail->messageId !== '' ? $mail->messageId : null] + $proposal->toArray();
+
+        // A shipping or delivery mail is dated when the parcel moved, not when he ordered. Parsers gave that date as the
+        // order date, so every status mail of an order in the model proposed a wrong «ordered on» — for eBay as «another
+        // module is responsible». Decided here once for every parser.
+        if (in_array($proposal->kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)) {
+            $row['order_date'] = null;
+        }
+
+        $proposal = OrderProposal::fromArray($row);
 
         return new FetchedMail($mail, $outcome, $parser->key(), $proposal);
     }

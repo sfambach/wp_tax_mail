@@ -42,6 +42,23 @@ final class MailFetcherTest extends TestCase
         self::assertSame('unreadable', $fetched[2]->error);
     }
 
+    public function testStatusMailsCarryNoOrderDate(): void
+    {
+        $script = "* OK\r\n* SEARCH 11 12\r\nA1 OK\r\n";
+        $tag = 2;
+
+        foreach ([11 => 'Bestellung 1', 12 => 'Versandt 1'] as $uid => $subject) {
+            $raw = "From: a@shop.de\nSubject: $subject\n\nx";
+            $script .= "* 1 FETCH (UID $uid BODY[] {" . strlen($raw) . "}\r\n$raw)\r\nA" . $tag++ . " OK\r\n";
+        }
+
+        $fetched = (new MailFetcher(new ParserRegistry([self::shop()], ['shop' => true])))
+            ->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
+
+        self::assertSame(['2026-10-22', null], [$fetched[0]->proposal?->orderDate, $fetched[1]->proposal?->orderDate]);
+        self::assertSame('2026-10-23', $fetched[1]->proposal?->shippedDate);
+    }
+
     private static function shop(): OrderMailParser
     {
         return new class () implements OrderMailParser {
@@ -63,7 +80,8 @@ final class MailFetcherTest extends TestCase
             public function parse(MailMessage $mail): OrderProposal
             {
                 return match ($mail->subject) {
-                    'Bestellung 1' => new OrderProposal('Shop', '1', ProposalKind::Ordered),
+                    'Bestellung 1' => new OrderProposal('Shop', '1', ProposalKind::Ordered, '2026-10-22'),
+                    'Versandt 1'   => new OrderProposal('Shop', '1', ProposalKind::Shipped, '2026-10-23', shippedDate: '2026-10-23'),
                     'Newsletter'   => new OrderProposal('Shop', '', ProposalKind::NoReceipt),
                     default        => throw new ParserException('unreadable'),
                 };
