@@ -26,13 +26,16 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.2.0';
+    public const VERSION     = '0.2.1';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
 
     /** Why the last sender count failed, for the redirect — per user, ten minutes. */
     private const SENDERS_FAILURE = 'taxmail_senders_failure_';
+
+    /** What the last «Save samples» wrote, for the redirect. */
+    public const SAMPLES_DONE = 'taxmail_samples_done_';
 
     /** Set once the 0.1.x «schedule» setting has become the modeller's fetch interval (D-981). */
     private const INTERVAL_MOVED = 'taxmail_interval_moved';
@@ -74,6 +77,8 @@ final class Plugin
         // After the modeller's own «Import» tab.
         add_filter(ConfigurationScreen::TABS_FILTER, $plugin->registerTab(...), 20);
         add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
+        add_action('admin_post_taxmail_samples', $plugin->handleSamples(...));
+        add_action('admin_post_taxmail_samples_delete', $plugin->handleSamplesDelete(...));
         add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
     }
 
@@ -171,6 +176,35 @@ final class Plugin
             set_transient(self::SENDERS_FAILURE . get_current_user_id(), $failure->getMessage(), 10 * MINUTE_IN_SECONDS);
         }
 
+        $this->back();
+    }
+
+    /** Writes the newest mails of one sender as sample files, for a parser still to be written. */
+    public function handleSamples(): void
+    {
+        $this->guard('taxmail_samples');
+
+        $sender = isset($_GET['sender']) ? sanitize_text_field(wp_unslash((string) $_GET['sender'])) : '';
+
+        if (preg_match('/^[A-Za-z0-9@._+-]{3,}$/', $sender) !== 1) {
+            wp_die(esc_html__('That is no sender address.', 'taxmail'), 400);
+        }
+
+        try {
+            $written = SampleMails::write($sender, (new MailSource(Settings::load()))->samples($sender, SampleMails::LIMIT));
+            /* translators: 1: number of mails, 2: sender */
+            set_transient(self::SAMPLES_DONE . get_current_user_id(), sprintf(__('%1$d sample mails of %2$s saved.', 'taxmail'), $written, $sender), 10 * MINUTE_IN_SECONDS);
+        } catch (ImapException $failure) {
+            set_transient(self::SENDERS_FAILURE . get_current_user_id(), $failure->getMessage(), 10 * MINUTE_IN_SECONDS);
+        }
+
+        $this->back();
+    }
+
+    public function handleSamplesDelete(): void
+    {
+        $this->guard('taxmail_samples_delete');
+        SampleMails::deleteAll();
         $this->back();
     }
 

@@ -110,9 +110,25 @@ final class ImapClient
      */
     public function uidsContaining(string $text): array
     {
+        return $this->uidsWhere('TEXT ' . self::quote($text));
+    }
+
+    /**
+     * UIDs of the mails in the selected folder whose «From» contains $sender, oldest first.
+     *
+     * @return list<int>
+     */
+    public function uidsFrom(string $sender): array
+    {
+        return $this->uidsWhere('FROM ' . self::quote($sender));
+    }
+
+    /** @return list<int> */
+    private function uidsWhere(string $criterion): array
+    {
         $uids = [];
 
-        foreach ($this->command('UID SEARCH TEXT ' . self::quote($text)) as $response) {
+        foreach ($this->command('UID SEARCH ' . $criterion) as $response) {
             if (str_starts_with(strtoupper($response->text), 'SEARCH')) {
                 foreach (preg_split('/\s+/', trim(substr($response->text, 6))) ?: [] as $uid) {
                     if ($uid !== '') {

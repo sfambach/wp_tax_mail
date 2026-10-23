@@ -8,6 +8,8 @@ use TaxMail\Core\Imap\TlsSocketStream;
 use TaxMail\Core\Import\FetchOutcome;
 use TaxMail\Core\Import\FetchedMail;
 use TaxMail\Core\Import\MailFetcher;
+use TaxMail\Core\Mail\MailMessage;
+use TaxMail\Core\Mail\MimeParser;
 use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Mailbox\SenderTally;
@@ -332,6 +334,43 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         } finally {
             $client->logout();
         }
+    }
+
+    /**
+     * The newest mails of one sender from the inbox and «Nicht erkannt», for writing a parser for a shop that has none
+     * yet. Nothing is moved and nothing is marked read.
+     *
+     * @return list<MailMessage>
+     * @throws ImapException
+     */
+    public function samples(string $sender, int $limit): array
+    {
+        $client = $this->connect();
+        $mails = [];
+
+        try {
+            $folders = $client->folders();
+
+            foreach ([$this->settings->folders->inbox, $this->settings->folders->unrecognised] as $name) {
+                $folder = FolderPlan::onServer($name, $client->delimiter());
+
+                if ($name !== $this->settings->folders->inbox && ! in_array($folder, $folders, true)) {
+                    continue;
+                }
+
+                $client->select($folder);
+
+                foreach (array_slice($client->uidsFrom($sender), -$limit) as $uid) {
+                    $mails[] = (new MimeParser())->parse($uid, $client->fetchRaw($uid));
+                }
+            }
+        } finally {
+            $client->logout();
+        }
+
+        usort($mails, static fn (MailMessage $a, MailMessage $b): int => $b->date <=> $a->date);
+
+        return array_slice($mails, 0, $limit);
     }
 
     /** @throws ImapException */

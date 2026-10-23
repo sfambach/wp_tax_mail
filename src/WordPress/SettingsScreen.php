@@ -80,17 +80,31 @@ final class SettingsScreen
             $html .= '<div class="notice notice-error inline"><p>' . esc_html(sprintf(__('Connection failed: %s', 'taxmail'), $sendersFailure)) . '</p></div>';
         }
 
+        $done = get_transient(Plugin::SAMPLES_DONE . get_current_user_id());
+        delete_transient(Plugin::SAMPLES_DONE . get_current_user_id());
+
+        if (is_string($done)) {
+            $html .= '<div class="notice notice-success inline"><p>' . esc_html($done) . '</p></div>';
+        }
+
+        if (SampleMails::count() > 0) {
+            /* translators: 1: number of files, 2: folder */
+            $html .= '<p>' . esc_html(sprintf(__('%1$d sample mails lie in wp-content/%2$s for writing a parser; the folder answers no web request.', 'taxmail'), SampleMails::count(), SampleMails::FOLDER))
+                . ' ' . self::actionLink('taxmail_samples_delete', __('Delete samples', 'taxmail')) . '</p>';
+        }
+
         $senders = get_transient(Plugin::SENDERS . get_current_user_id());
 
         if (is_array($senders) && $senders !== []) {
             $html .= '<details open><summary>' . esc_html__('Most frequent senders in the inbox', 'taxmail') . '</summary>'
                 . '<table class="widefat striped" style="max-width:40em"><thead><tr><th scope="col">' . esc_html__('Sender', 'taxmail')
-                . '</th><th scope="col">' . esc_html__('Mails', 'taxmail') . '</th><th scope="col">' . esc_html__('Rule', 'taxmail') . '</th></tr></thead><tbody>';
+                . '</th><th scope="col">' . esc_html__('Mails', 'taxmail') . '</th><th scope="col">' . esc_html__('Rule', 'taxmail') . '</th><th scope="col"><span class="screen-reader-text">'
+                . esc_html__('Samples', 'taxmail') . '</span></th></tr></thead><tbody>';
 
             foreach ($senders as $sender => $count) {
                 $ruled = $settings->rules->folderFor((string) $sender, '');
                 $html .= '<tr><td><code>' . esc_html((string) $sender) . '</code></td><td>' . esc_html((string) $count) . '</td><td>'
-                    . esc_html($ruled ?? '') . '</td></tr>';
+                    . esc_html($ruled ?? '') . '</td><td>' . self::actionLink('taxmail_samples', __('Save samples', 'taxmail'), ['sender' => (string) $sender]) . '</td></tr>';
             }
 
             $html .= '</tbody></table></details>';
@@ -151,9 +165,10 @@ final class SettingsScreen
     }
 
     /** A button-looking link to admin-post.php with its own nonce; it changes no setting, so unsaved fields stay unsaved. */
-    private static function actionLink(string $action, string $label): string
+    /** @param array<string, string> $args */
+    private static function actionLink(string $action, string $label, array $args = []): string
     {
-        return '<a class="button button-secondary" href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=' . $action), $action)) . '">'
+        return '<a class="button button-secondary" href="' . esc_url(wp_nonce_url(add_query_arg(['action' => $action] + $args, admin_url('admin-post.php')), $action)) . '">'
             . esc_html($label) . '</a>';
     }
 }

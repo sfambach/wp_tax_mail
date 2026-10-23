@@ -47,4 +47,10 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     'needs the Taxonomy Modeller 0.1.49 or later — the mail import is off until it is active.' => 'braucht den Taxonomy Modeller 0.1.49 oder neuer — der Mail-Import ist aus, bis er aktiv ist.',
     'No mailbox yet — enter server, user and password, then test again.' => 'Noch kein Postfach — Server, Benutzer und Passwort eintragen, dann erneut testen.',
     'Folders created: %s.' => 'Ordner angelegt: %s.',
+    '%1$d sample mails lie in wp-content/%2$s for writing a parser; the folder answers no web request.' => '%1$d Muster-Mails liegen in wp-content/%2$s, um einen Parser zu schreiben; der Ordner ist von außen nicht abrufbar.',
+    'Delete samples' => 'Muster löschen',
+    'Samples' => 'Muster',
+    'Save samples' => 'Muster speichern',
+    'That is no sender address.' => 'Das ist keine Absenderadresse.',
+    '%1$d sample mails of %2$s saved.' => '%1$d Muster-Mails von %2$s gespeichert.',
 ]];
