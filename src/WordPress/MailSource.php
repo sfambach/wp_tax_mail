@@ -122,8 +122,39 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 $lastUid = max($lastUid, $result->mail->uid);
             }
 
+            if ($canMove) {
+                $this->sweepLabels($client);
+            }
+
             return new FetchBatch($proposals, self::cursor($status->uidValidity, $lastUid));
         });
+    }
+
+    /**
+     * Label mails that went to «Nicht erkannt» before this module knew them (before 0.3.0), or that a rule sorted away,
+     * are taken from there on every fetch; the server finds them, so the folder is not read mail by mail.
+     *
+     * @throws ImapException
+     */
+    private function sweepLabels(ImapClient $client): void
+    {
+        $folder = FolderPlan::onServer($this->settings->folders->unrecognised, $client->delimiter());
+
+        if (! in_array($folder, $client->folders(), true)) {
+            return;
+        }
+
+        $client->select($folder);
+        $imported = FolderPlan::onServer($this->settings->folders->imported, $client->delimiter());
+
+        foreach (array_slice($client->uidsContaining('Online Frankierung'), -self::LIMIT) as $uid) {
+            $label = (new DhlLabelMail())->read((new MimeParser())->parse($uid, $client->fetchRaw($uid)));
+
+            if ($label !== null) {
+                ShippingLabels::remember($label);
+                $client->move($uid, $imported);
+            }
+        }
     }
 
     /**

@@ -20,6 +20,13 @@ final class DhlLabelMailTest extends TestCase
         ], $label?->toArray());
     }
 
+    public function testForwardedCopyIsALabelToo(): void
+    {
+        $raw = str_replace(['From: noreply@dhl.com', 'Subject: '], ['From: Stefan <stefan@example.de>', 'Subject: WG: '], (string) file_get_contents(__DIR__ . '/../Parser/fixtures/d1.eml'));
+
+        self::assertSame('7BQCFDV5F9Z8', (new DhlLabelMail())->read((new MimeParser())->parse(1, $raw))?->cart);
+    }
+
     public function testOtherMailsAreNoLabel(): void
     {
         $mail = (new MimeParser())->parse(1, (string) file_get_contents(__DIR__ . '/../Parser/fixtures/e2.eml'));

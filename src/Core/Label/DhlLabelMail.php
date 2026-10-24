@@ -7,12 +7,13 @@ use TaxMail\Core\Mail\MailMessage;
 /**
  * DHL's «Auftragsbestätigung Ihrer Online Frankierung» for a label bought through eBay: no order, but the link to the
  * label PDF, which the eBay module attaches to the parcel of his sale. The invoice PDF attached to the mail is not read.
+ * The sender is not checked: a forwarded copy carries his address, and the DHL link is what makes it one.
  */
 final class DhlLabelMail
 {
     public function read(MailMessage $mail): ?ShippingLabel
     {
-        if (! str_ends_with(strtolower($mail->fromAddress), '@dhl.com') || ! str_contains($mail->subject, 'Online Frankierung')) {
+        if (! str_contains($mail->subject . ' ' . $mail->text, 'Online Frankierung')) {
             return null;
         }
 
