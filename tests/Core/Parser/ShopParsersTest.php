@@ -125,6 +125,17 @@ final class ShopParsersTest extends TestCase
         self::assertSame([['title' => 'Lötzinn 100g', 'quantity' => 2.0, 'unit_price' => '7.99', 'article_number' => '123456']], $order['lines']);
     }
 
+    public function testConrad2026LayoutTakesTitleAboveDeliveryAndExactUnitPrice(): void
+    {
+        $order = self::read('c2');
+
+        self::assertSame(['2020147197', '4.95', '7.57'], [$order['order_number'], $order['shipping_cost'], $order['total']]);
+        self::assertSame([
+            ['title' => 'Yageo MF0207F220RH Metallschicht-Widerstand 220 Ω 1 St.', 'quantity' => 100.0, 'unit_price' => '0.0162', 'article_number' => '1417626'],
+            ['title' => 'Kontakt Chemie 814727 Sprühröhrchen 5 St.', 'quantity' => 10.0, 'unit_price' => '0.1', 'article_number' => '814727'],
+        ], $order['lines']);
+    }
+
     public function testAliExpressAwaitingConfirmation(): void
     {
         $order = self::read('a1');

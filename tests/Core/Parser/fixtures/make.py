@@ -13,6 +13,11 @@ eml('m1','Mouser <sales@eu.mouser.com>','Mouser Order Confirmation 12345678',
     ['Web Order Number','12345678','595-LM317TG','LM317TG','Linear Voltage Regulator','OCT 16, 2024','5','0,61','3,05','566-0206F','Merchandise Total','3,05','Shipping','20,00','VAT','4,38'])
 eml('c1','Conrad <service@conrad.de>','Bestellt: Ihre Bestellung 1234567890',
     ['Ihre Bestellung','Lötzinn 100g','Menge: 2','Einzelpreis 7,99 €','Artikelnummer 123456','Versandkosten','4,95 €','Summe','20,93 €'])
+eml('c2','Conrad <noreply@conrad.de>','Bestellt: Yageo MF0207 und 1 weitere Artikel - 2020147197',
+    ['Vielen Dank für Ihre Bestellung!','wir haben Ihre Bestellung','2020147197','erhalten','Bestellübersicht','24.10.2026',
+     'Yageo MF0207F220RH Metallschicht-Widerstand 220 Ω 1 St.','Lieferung: Mi., 28.10.2026','Menge: 100 Stück','Einzelpreis: € 0,02','Artikelnummer: 1417626','Verkäufer: Conrad Electronic','€ 1,62',
+     'Kontakt Chemie 814727 Sprühröhrchen 5 St.','Lieferung: Mi., 28.10.2026','Menge: 10 Set(s)','Einzelpreis: € 0,10','Artikelnummer: 814727','Verkäufer: Conrad Electronic','€ 1,00',
+     'Zwischensumme','€ 2,62','Versandkosten','€ 4,95','Conrad','€ 4,95','Summe','€ 7,57'])
 eml('a1','AliExpress <transaction@notice.aliexpress.com>','Bestellung 8123456789012345678: auf Bestätigung wird gewartet',
     ['Bestellung 8123456789012345678','ESP32 DevKit','x3','USB-C Kabel','$1.20','x2','Bestellsumme','12,34€'])
 eml('j1','Stefan <stefan@example.de>','Fwd: Order',

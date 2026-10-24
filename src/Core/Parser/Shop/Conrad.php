@@ -63,11 +63,32 @@ final class Conrad implements OrderMailParser
             if (str_starts_with($line, 'Menge:') && $k > 0 && $k + 2 < count($lines) && preg_match('/\d+/', $line, $quantity) === 1) {
                 $unit = str_starts_with($lines[$k + 1], 'Einzelpreis') ? Text::money($lines[$k + 1])[0] : null;
                 $article = str_starts_with($lines[$k + 2], 'Artikelnummer') && preg_match('/\d+/', $lines[$k + 2], $number) === 1 ? $number[0] : null;
-                $items->add($lines[$k - 1], (float) $quantity[0], $unit, $article);
+                // The 2026 layout puts «Lieferung: …» between the title and the quantity.
+                $title = $k > 1 && str_starts_with($lines[$k - 1], 'Lieferung:') ? $lines[$k - 2] : $lines[$k - 1];
+                // «Einzelpreis» is rounded to the cent (100 resistors at «€ 0,02» cost € 1,62); the line total is exact.
+                $lineTotal = self::lineTotal($lines, $k);
+                $unit = $lineTotal !== null && (float) $quantity[0] > 0 ? $lineTotal / (float) $quantity[0] : $unit;
+                $items->add($title, (float) $quantity[0], $unit, $article);
             }
         }
 
         return new OrderProposal($this->shopName(), $match[1], ProposalKind::Ordered, $mail->date?->format('Y-m-d'), 'EUR', $items->lines(),
             Text::decimal(Text::money(Text::after($lines, 'Versandkosten'))[0]), Text::decimal(Text::money(Text::after($lines, 'Summe'))[0]), self::MERCHANT);
+    }
+
+    /** The «€ 1,62» line that closes an item, within the few lines after its quantity; null when the layout has none. */
+    private static function lineTotal(array $lines, int $quantityAt): ?float
+    {
+        for ($k = $quantityAt + 1; $k <= $quantityAt + 5 && isset($lines[$k]); $k++) {
+            if (str_starts_with($lines[$k], 'Menge:')) {
+                return null;
+            }
+
+            if (preg_match('/^€\s*[\d.,]+$/u', $lines[$k]) === 1) {
+                return Text::money($lines[$k])[0];
+            }
+        }
+
+        return null;
     }
 }
