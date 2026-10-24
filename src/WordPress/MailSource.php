@@ -8,6 +8,7 @@ use TaxMail\Core\Imap\TlsSocketStream;
 use TaxMail\Core\Import\FetchOutcome;
 use TaxMail\Core\Import\FetchedMail;
 use TaxMail\Core\Import\MailFetcher;
+use TaxMail\Core\Label\DhlLabelMail;
 use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Mail\MimeParser;
 use TaxMail\Core\Mailbox\ConnectionCheck;
@@ -110,7 +111,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             $this->ensureRuleFolders($client);
 
             foreach ((new MailFetcher(Plugin::registry($this->settings)))->fetch($client, $lastUid, self::LIMIT) as $result) {
-                $target = $this->sortTarget($result, $this->outcomeFolder($result->outcome));
+                $target = $this->tookLabel($result) ? $this->settings->folders->imported : $this->sortTarget($result, $this->outcomeFolder($result->outcome));
 
                 if ($target === null && $result->outcome === FetchOutcome::Proposed && $result->proposal !== null) {
                     $proposals[] = $this->incoming($result, $status->uidValidity);
@@ -199,7 +200,9 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 continue;
             }
 
-            if ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->orderNumber !== ''
+            if ($this->tookLabel($result)) {
+                $client->move($uid, $imported);
+            } elseif ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->orderNumber !== ''
                 && ($proposal->numberMissing ? $model->findLoose($proposal) : $model->findOrder($proposal->platform, $proposal->orderNumber)) !== null) {
                 $client->move($uid, $imported);
             } elseif ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->lines !== []
@@ -400,6 +403,20 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             /* translators: 1: platform, 2: mail subject, 3: date of the mail */
             'origin'       => sprintf(__('From %1$s mail «%2$s» of %3$s.', 'taxmail'), $result->proposal->platform, $mail->subject, $received?->format('Y-m-d') ?? '?'),
         ]);
+    }
+
+    /** A DHL label mail is kept for the eBay module and counts as handled (moved to «Importiert»). */
+    private function tookLabel(FetchedMail $result): bool
+    {
+        $label = (new DhlLabelMail())->read($result->mail);
+
+        if ($label === null) {
+            return false;
+        }
+
+        ShippingLabels::remember($label);
+
+        return true;
     }
 
     /**

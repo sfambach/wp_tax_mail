@@ -21,6 +21,10 @@ eml('j2','Stefan <stefan@example.de>','Fwd: Order',
     ['-------- Forwarded Message --------','Subject: Your order W202410151234567 is On Its Way','Date: Mon, 21 Oct 2024 08:00:00 +0000','From: JLCPCB <support@jlcpcb.com>','To: einkauf@example.de','Ready for pick up by DHL Express. Tracking Number: 1234567890','Items in this shipment','isa8_multi_io_gerber_Y87','5 pcs','backplane-rev2(Reorder)','10 pcs','View order'])
 eml('a2','AliExpress <transaction@notice.aliexpress.com>','Bestellung 8123456789012345678: Bestellung versandt',
     ['Bestellung 8123456789012345678','Ihr Paket ist unterwegs','Sendungsnummer: LP00123456789012','ESP32 DevKit','x3'], date='Mon, 21 Oct 2024 09:00:00 +0200')
+eml('d1','noreply@dhl.com','Auftragsbestätigung Ihrer Online Frankierung 7BQCFDV5F9Z8',
+    ['Warenkorb-Nr.: 7BQCFDV5F9Z8','Datum: 23.10.2026','IHRE VERSANDMARKE:','1x Maxibrief bis 1000 g / 2,90 €',
+     '<a href="https://www.dhl.de/int-versenden/gw/rest/init?token=abc123&amp;download=letter&amp;pos=1">Versandmarke drucken</a>',
+     '<a href="https://www.dhl.de/int-versenden/gw/rest/init?token=abc123&amp;download=invoice">Rechnung</a>'], date='Fri, 23 Oct 2026 18:20:40 +0200')
 E='eBay <ebay@ebay.com>'
 eml('e1',E,'Bestellung bestätigt: ISA Floppy Controller',
     ['Danke für Ihren Kauf','ISA 8-bit Floppy Multi-I/O Controller Zilog','Preis:','EUR 45,00','Artikelnr.:','123456789012','Lieferung ca.:','Fr, 18. Okt','Bestellnummer:','27-13610-49402','Verkäufer:','r-o-r-c','Gesamtbetrag:','Zwischensumme (1 Artikel)','EUR 45,00','Versand','EUR 6,99','Gesamtbetrag wird abgebucht','EUR 51,99','eBay-Käuferschutz'])

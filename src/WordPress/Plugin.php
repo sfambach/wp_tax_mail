@@ -26,7 +26,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.2.2';
+    public const VERSION     = '0.3.0';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -79,6 +79,7 @@ final class Plugin
         add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
         add_action('admin_post_taxmail_samples', $plugin->handleSamples(...));
         add_action('admin_post_taxmail_samples_delete', $plugin->handleSamplesDelete(...));
+        add_filter(ShippingLabels::FILTER, ShippingLabels::filter(...));
         add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
     }
 
