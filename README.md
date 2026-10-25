@@ -56,6 +56,11 @@ A mail connection is a class implementing `TaxMail\Core\Parser\OrderMailParser`,
 `taxmail_parsers` filter. Which module is responsible for a shop is set in the modeller's duty table
 (*Taxonomy Modeller → Configuration → Import*), not here.
 
+## Authors
+
+- **Stefan Fambach** (SteFam) – idea and concept, review and testing – https://www.fambach.net
+- **Claude** (Anthropic AI) – implementation, via Claude Code
+
 ## AI disclosure
 
-This repository is created and maintained with the help of AI (Claude by Anthropic). All changes are reviewed by the owner.
+This project is built with AI assistance. Stefan Fambach had the idea, wrote the concept and reviews and tests every change; the implementation (code and documentation) is written largely by Claude (Anthropic) via Claude Code.
