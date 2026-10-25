@@ -30,6 +30,11 @@ eml('d1','noreply@dhl.com','Auftragsbestätigung Ihrer Online Frankierung 7BQCFD
     ['Warenkorb-Nr.: 7BQCFDV5F9Z8','Datum: 23.10.2026','IHRE VERSANDMARKE:','1x Maxibrief bis 1000 g / 2,90 €',
      '<a href="https://www.dhl.de/int-versenden/gw/rest/init?token=abc123&amp;download=letter&amp;pos=1">Versandmarke drucken</a>',
      '<a href="https://www.dhl.de/int-versenden/gw/rest/init?token=abc123&amp;download=invoice">Rechnung</a>'], date='Fri, 23 Oct 2026 18:20:40 +0200')
+eml('z1','"Amazon.de" <bestellbestaetigung@amazon.de>','Bestellt: „ESP32 DevKit...“ und 2 weitere Artikel',
+    ['Vielen Dank für deine Bestellung!','Bestellnr. \u202b304-1111111-2222222','<img alt="ESP32 DevKit V1 Entwicklungsboard mit CP2102 | 2 Stück">ESP32 DevKit V1 Entwick...','Verkauf durch Amazon.de','Zustand: Neu','Menge: 2','9','98','€','9 98 €',
+     'Summe','0.00€','Bestellnr. \u202b304-3333333-4444444','USB-C Kabel 1 m','Verkauf durch Kabelshop','Zustand: Neu','Menge: 1','4','49','€','4 49 €','Summe','0.00€'], date='Wed, 21 Oct 2026 15:49:00 +0200')
+eml('z2','"Amazon.de" <order-update@amazon.de>','Zugestellt: „ESP32 DevKit...“',
+    ['Dein Paket wurde zugestellt!','Heute zugestellt','Bestellnr. \u202b304-1111111-2222222','Lieferung verfolgen'], date='Thu, 22 Oct 2026 09:37:32 +0200')
 E='eBay <ebay@ebay.com>'
 eml('e1',E,'Bestellung bestätigt: ISA Floppy Controller',
     ['Danke für Ihren Kauf','ISA 8-bit Floppy Multi-I/O Controller Zilog','Preis:','EUR 45,00','Artikelnr.:','123456789012','Lieferung ca.:','Fr, 18. Okt','Bestellnummer:','27-13610-49402','Verkäufer:','r-o-r-c','Gesamtbetrag:','Zwischensumme (1 Artikel)','EUR 45,00','Versand','EUR 6,99','Gesamtbetrag wird abgebucht','EUR 51,99','eBay-Käuferschutz'])

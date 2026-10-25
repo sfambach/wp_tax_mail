@@ -7,6 +7,7 @@ use TaxMail\Core\Imap\ImapClient;
 use TaxMail\Core\Import\FetchOutcome;
 use TaxMail\Core\Import\MailFetcher;
 use TaxMail\Core\Mail\MailMessage;
+use TaxMail\Core\Parser\MultiOrderMailParser;
 use TaxMail\Core\Parser\OrderMailParser;
 use TaxMail\Core\Parser\ParserException;
 use TaxMail\Core\Parser\ParserRegistry;
@@ -57,6 +58,27 @@ final class MailFetcherTest extends TestCase
 
         self::assertSame(['2026-10-22', null], [$fetched[0]->proposal?->orderDate, $fetched[1]->proposal?->orderDate]);
         self::assertSame('2026-10-23', $fetched[1]->proposal?->shippedDate);
+    }
+
+    public function testAMailWithSeveralOrdersGivesEachOne(): void
+    {
+        $raw = "From: a@multi.de\nSubject: Bestellt\nMessage-ID: <m@multi.de>\n\nx";
+        $script = "* OK\r\n* SEARCH 11\r\nA1 OK\r\n* 1 FETCH (UID 11 BODY[] {" . strlen($raw) . "}\r\n$raw)\r\nA2 OK\r\n";
+        $multi = new class () implements MultiOrderMailParser {
+            public function key(): string { return 'multi'; }
+            public function shopName(): string { return 'Multi'; }
+            public function recognises(MailMessage $mail): bool { return true; }
+            public function parse(MailMessage $mail): OrderProposal { return $this->parseAll($mail)[0]; }
+            public function parseAll(MailMessage $mail): array
+            {
+                return [new OrderProposal('Multi', '1', ProposalKind::Ordered), new OrderProposal('Multi', '2', ProposalKind::Ordered)];
+            }
+        };
+
+        $fetched = (new MailFetcher(new ParserRegistry([$multi], ['multi' => true])))->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
+
+        self::assertSame(['1', '2'], array_map(static fn (OrderProposal $order): string => $order->orderNumber, $fetched[0]->proposals));
+        self::assertSame(['mail', 'mail'], array_map(static fn (OrderProposal $order): ?string => $order->source, $fetched[0]->proposals));
     }
 
     private static function shop(): OrderMailParser

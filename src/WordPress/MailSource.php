@@ -22,6 +22,7 @@ use Taxmod\Core\Import\FetchingSource;
 use Taxmod\Core\Import\InboxStatus;
 use Taxmod\Core\Import\IncomingProposal;
 use Taxmod\Core\Import\ModelLookup;
+use Taxmod\Core\Import\OrderProposal;
 use Taxmod\Core\Import\ProposalKind;
 use Taxmod\Core\Import\ResolvingSource;
 use Taxmod\Core\Import\RestartingSource;
@@ -114,7 +115,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 $target = $this->tookLabel($result) ? $this->settings->folders->imported : $this->sortTarget($result, $this->outcomeFolder($result->outcome));
 
                 if ($target === null && $result->outcome === FetchOutcome::Proposed && $result->proposal !== null) {
-                    $proposals[] = $this->incoming($result, $status->uidValidity);
+                    array_push($proposals, ...$this->incoming($result, $status->uidValidity));
                 } elseif ($target !== null && $canMove) {
                     $client->move($result->mail->uid, FolderPlan::onServer($target, $client->delimiter()));
                 }
@@ -225,22 +226,27 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             }
 
             $last = $uid;
-            $proposal = $result?->proposal;
 
             if ($result === null || $result->outcome === FetchOutcome::Failed) {
                 continue;
             }
 
+            $known = static fn (OrderProposal $proposal): bool => $proposal->orderNumber !== ''
+                && ($proposal->numberMissing ? $model->findLoose($proposal) : $model->findOrder($proposal->platform, $proposal->orderNumber)) !== null;
+            // Only what could become a new order: years of sale and refund mails would bury the page.
+            $couldBeNew = static fn (OrderProposal $proposal): bool => $proposal->lines !== []
+                && ! in_array($proposal->kind, [ProposalKind::Sold, ProposalKind::Refunded, ProposalKind::Cancelled], true)
+                && $duties->allows(self::KEY, $proposal->platform, DutyRole::Orders, $sources);
+            $offered = $result->outcome === FetchOutcome::Proposed
+                ? array_values(array_filter($this->incoming($result, $uidValidity), static fn (IncomingProposal $incoming): bool => ! $known($incoming->proposal) && $couldBeNew($incoming->proposal)))
+                : [];
+
             if ($this->tookLabel($result)) {
                 $client->move($uid, $imported);
-            } elseif ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->orderNumber !== ''
-                && ($proposal->numberMissing ? $model->findLoose($proposal) : $model->findOrder($proposal->platform, $proposal->orderNumber)) !== null) {
+            } elseif ($result->outcome === FetchOutcome::Proposed && $result->proposals !== [] && array_filter($result->proposals, $known) === $result->proposals) {
                 $client->move($uid, $imported);
-            } elseif ($result->outcome === FetchOutcome::Proposed && $proposal !== null && $proposal->lines !== []
-                && ! in_array($proposal->kind, [ProposalKind::Sold, ProposalKind::Refunded, ProposalKind::Cancelled], true)
-                && $duties->allows(self::KEY, $proposal->platform, DutyRole::Orders, $sources)) {
-                // Only what could become a new order: years of sale and refund mails would bury the page.
-                $proposals[] = $this->incoming($result, $uidValidity);
+            } elseif ($offered !== []) {
+                array_push($proposals, ...$offered);
             } elseif (($sorted = $this->sortTarget($result, null)) !== null) {
                 $client->move($uid, FolderPlan::onServer($sorted, $client->delimiter()));
             }
@@ -273,7 +279,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 $result = $fetcher->fetchOne($client, $uid);
 
                 if ($result->outcome === FetchOutcome::Proposed && $result->proposal !== null) {
-                    $proposals[] = $this->incoming($result, $status->uidValidity);
+                    array_push($proposals, ...$this->incoming($result, $status->uidValidity));
                 }
             }
 
@@ -325,7 +331,9 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             InboxStatus::Open      => null,
         };
 
-        if ($folder === null) {
+        // A mail that confirms several orders stays until the backlog finds all of them in the model; moving it with the
+        // first take would leave the others without their mail.
+        if ($folder === null || (int) ($evidence['orders_in_mail'] ?? 1) > 1) {
             return;
         }
 
@@ -417,23 +425,30 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         return $client;
     }
 
-    /** What the inbox keeps beside the proposal: enough to find the mail again and to say where it came from — never a secret (D-951). */
-    private function incoming(FetchedMail $result, int $uidValidity): IncomingProposal
+    /**
+     * What the inbox keeps beside each proposal of a mail: enough to find the mail again and to say where it came from —
+     * never a secret (D-951). Orders confirmed in one mail share a bundle, so the inbox shows them in one box (D-970).
+     *
+     * @return list<IncomingProposal>
+     */
+    private function incoming(FetchedMail $result, int $uidValidity): array
     {
         $mail = $result->mail;
         $received = $mail->date?->setTimezone(wp_timezone());
+        $proposals = $result->proposals !== [] ? $result->proposals : array_filter([$result->proposal]);
+        $count = count($proposals);
 
-        return new IncomingProposal($result->proposal, [
-            'uid'          => $mail->uid,
-            'uid_validity' => $uidValidity,
-            'message_id'   => $mail->messageId,
-            'sender'       => $mail->fromAddress,
-            'subject'      => $mail->subject,
-            'received_at'  => $received?->format('Y-m-d H:i:s'),
-            'parser'       => $result->parserKey,
+        return array_values(array_map(static fn (OrderProposal $proposal): IncomingProposal => new IncomingProposal($proposal, [
+            'uid'            => $mail->uid,
+            'uid_validity'   => $uidValidity,
+            'message_id'     => $mail->messageId,
+            'sender'         => $mail->fromAddress,
+            'subject'        => $mail->subject,
+            'received_at'    => $received?->format('Y-m-d H:i:s'),
+            'parser'         => $result->parserKey,
             /* translators: 1: platform, 2: mail subject, 3: date of the mail */
-            'origin'       => sprintf(__('From %1$s mail «%2$s» of %3$s.', 'taxmail'), $result->proposal->platform, $mail->subject, $received?->format('Y-m-d') ?? '?'),
-        ]);
+            'origin'         => sprintf(__('From %1$s mail «%2$s» of %3$s.', 'taxmail'), $proposal->platform, $mail->subject, $received?->format('Y-m-d') ?? '?'),
+        ] + ($count > 1 ? ['bundle' => 'mail:' . ($mail->messageId !== '' ? $mail->messageId : $mail->uid), 'orders_in_mail' => $count] : [])), $proposals));
     }
 
     /** A DHL label mail is kept for the eBay module and counts as handled (moved to «Importiert»). */

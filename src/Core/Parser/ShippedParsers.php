@@ -3,6 +3,7 @@
 namespace TaxMail\Core\Parser;
 
 use TaxMail\Core\Parser\Shop\AliExpress;
+use TaxMail\Core\Parser\Shop\Amazon;
 use TaxMail\Core\Parser\Shop\Conrad;
 use TaxMail\Core\Parser\Shop\Ebay;
 use TaxMail\Core\Parser\Shop\Jlcpcb;
@@ -18,6 +19,6 @@ final class ShippedParsers
     /** @return list<OrderMailParser> */
     public static function all(): array
     {
-        return [new Ebay(), new Reichelt(), new Mouser(), new Conrad(), new AliExpress(), new Jlcpcb()];
+        return [new Ebay(), new Reichelt(), new Mouser(), new Conrad(), new AliExpress(), new Jlcpcb(), new Amazon()];
     }
 }

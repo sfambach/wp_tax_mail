@@ -15,7 +15,7 @@ final class ShopParsersTest extends TestCase
     /** @return array<string, mixed> */
     private static function read(string $fixture): array
     {
-        $registry = new ParserRegistry(ShippedParsers::all(), array_fill_keys(['ebay', 'reichelt', 'mouser', 'conrad', 'aliexpress', 'jlcpcb'], true));
+        $registry = new ParserRegistry(ShippedParsers::all(), array_fill_keys(['ebay', 'reichelt', 'mouser', 'conrad', 'aliexpress', 'jlcpcb', 'amazon'], true));
         $mail = (new MimeParser())->parse(1, (string) file_get_contents(__DIR__ . '/fixtures/' . $fixture . '.eml'));
         $parser = $registry->parserFor($mail) ?? throw new \RuntimeException('no parser for ' . $fixture);
 
@@ -151,6 +151,27 @@ final class ShopParsersTest extends TestCase
 
         self::assertSame(['8123456789012345678', 'shipped', null, '2024-10-21'], [$order['order_number'], $order['kind'], $order['order_date'], $order['shipped_date']]);
         self::assertSame(['LP00123456789012'], $order['tracking']);
+    }
+
+    public function testAmazonConfirmationHoldsEveryOrderWithFullTitles(): void
+    {
+        $registry = new ParserRegistry(ShippedParsers::all(), ['amazon' => true]);
+        $mail = (new MimeParser())->parse(1, (string) file_get_contents(__DIR__ . '/fixtures/z1.eml'));
+        $parser = $registry->parserFor($mail);
+        self::assertTrue($parser instanceof \TaxMail\Core\Parser\MultiOrderMailParser);
+        $orders = array_map(static fn ($order): array => $order->toArray(), $parser->parseAll($mail));
+
+        self::assertSame(['304-1111111-2222222', '304-3333333-4444444'], array_column($orders, 'order_number'));
+        self::assertSame(['ordered', '2026-10-21', null, 'Amazon.de'], [$orders[0]['kind'], $orders[0]['order_date'], $orders[0]['total'], $orders[0]['counterparty']]);
+        self::assertSame([['title' => 'ESP32 DevKit V1 Entwicklungsboard mit CP2102 | 2 Stück', 'quantity' => 2.0, 'unit_price' => '4.99', 'article_number' => null]], $orders[0]['lines']);
+        self::assertSame([['title' => 'USB-C Kabel 1 m', 'quantity' => 1.0, 'unit_price' => '4.49', 'article_number' => null]], $orders[1]['lines']);
+    }
+
+    public function testAmazonDeliveryIsAStatusWithoutOrderDate(): void
+    {
+        $order = self::read('z2');
+
+        self::assertSame(['304-1111111-2222222', 'delivered', null], [$order['order_number'], $order['kind'], $order['order_date']]);
     }
 
     public function testJlcpcbReviewAndShippingThroughForwarding(): void

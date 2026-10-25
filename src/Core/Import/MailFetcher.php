@@ -5,6 +5,7 @@ namespace TaxMail\Core\Import;
 use TaxMail\Core\Imap\ImapClient;
 use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Mail\MimeParser;
+use TaxMail\Core\Parser\MultiOrderMailParser;
 use TaxMail\Core\Parser\ParserException;
 use TaxMail\Core\Parser\ParserRegistry;
 use Taxmod\Core\Import\OrderProposal;
@@ -63,7 +64,7 @@ final class MailFetcher
         }
 
         try {
-            $proposal = $parser->parse($mail);
+            $proposals = $parser instanceof MultiOrderMailParser ? $parser->parseAll($mail) : [$parser->parse($mail)];
         } catch (ParserException $failure) {
             return new FetchedMail($mail, FetchOutcome::Failed, $parser->key(), null, $failure->getMessage());
         } catch (\Throwable $failure) {
@@ -72,19 +73,21 @@ final class MailFetcher
                 $failure::class . ': ' . $failure->getMessage() . ' (' . basename($failure->getFile()) . ':' . $failure->getLine() . ')');
         }
 
-        $outcome = $proposal->kind === ProposalKind::NoReceipt ? FetchOutcome::NoReceipt : FetchOutcome::Proposed;
-        // The shared format names its source and the source's own id (D-953); the parsers need not know.
-        $row = ['source' => 'mail', 'external_id' => $mail->messageId !== '' ? $mail->messageId : null] + $proposal->toArray();
+        $outcome = $proposals[0]->kind === ProposalKind::NoReceipt ? FetchOutcome::NoReceipt : FetchOutcome::Proposed;
+        $proposals = array_map(static function (OrderProposal $proposal) use ($mail): OrderProposal {
+            // The shared format names its source and the source's own id (D-953); the parsers need not know.
+            $row = ['source' => 'mail', 'external_id' => $mail->messageId !== '' ? $mail->messageId : null] + $proposal->toArray();
 
-        // A shipping or delivery mail is dated when the parcel moved, not when he ordered. Parsers gave that date as the
-        // order date, so every status mail of an order in the model proposed a wrong «ordered on» — for eBay as «another
-        // module is responsible». Decided here once for every parser.
-        if (in_array($proposal->kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)) {
-            $row['order_date'] = null;
-        }
+            // A shipping or delivery mail is dated when the parcel moved, not when he ordered. Parsers gave that date as
+            // the order date, so every status mail of an order in the model proposed a wrong «ordered on» — for eBay as
+            // «another module is responsible». Decided here once for every parser.
+            if (in_array($proposal->kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)) {
+                $row['order_date'] = null;
+            }
 
-        $proposal = OrderProposal::fromArray($row);
+            return OrderProposal::fromArray($row);
+        }, $proposals);
 
-        return new FetchedMail($mail, $outcome, $parser->key(), $proposal);
+        return new FetchedMail($mail, $outcome, $parser->key(), $proposals[0], null, $proposals);
     }
 }
