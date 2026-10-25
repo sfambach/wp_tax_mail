@@ -5,6 +5,7 @@ namespace TaxMail\Core\Parser\Shop;
 use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Parser\LineCollector;
 use TaxMail\Core\Parser\MultiOrderMailParser;
+use TaxMail\Core\Parser\Text;
 use Taxmod\Core\Import\OrderProposal;
 use Taxmod\Core\Import\ProposalKind;
 
@@ -12,7 +13,8 @@ use Taxmod\Core\Import\ProposalKind;
  * Amazon.de (no buyer API): «Bestellt», «Versendet», «In Zustellung», «Zugestellt» / «Geliefert». One confirmation can
  * hold several orders — Amazon splits a checkout by seller and delivery date —, each under its own «Bestellnr.». The
  * text cuts titles short («Zeiss Brillen-Reinigungstücher 20...»); the full title is the product image's alt text.
- * The mails name no tracking number and no shipping cost, and the confirmation's «Summe» reads 0.00 €.
+ * The mails name no tracking number and no shipping cost, and the confirmation's «Summe» reads 0.00 € — the total is
+ * the sum of the items then.
  */
 final class Amazon implements MultiOrderMailParser
 {
@@ -79,10 +81,13 @@ final class Amazon implements MultiOrderMailParser
 
         foreach ($orders as $number => $order) {
             $sellers = array_keys($order['sellers']);
+            // The confirmation's «Summe» reads 0.00 €; the items carry their prices, and Amazon.de ships them free or
+            // names no shipping cost, so their sum is the order total.
+            $total = $order['total'] ?? self::sum($order['items']->lines());
             $proposals[] = new OrderProposal($this->shopName(), (string) $number, $kind,
                 $kind === ProposalKind::Ordered ? $mail->date?->format('Y-m-d') : null, 'EUR', $order['items']->lines(),
                 // A status mail's «Summe» covers only the parcel, not the order.
-                null, $kind === ProposalKind::Ordered ? $order['total'] : null, count($sellers) === 1 ? $sellers[0] : null,
+                null, $kind === ProposalKind::Ordered ? $total : null, count($sellers) === 1 ? $sellers[0] : null,
                 shippedDate: $kind === ProposalKind::Shipped && str_starts_with($mail->subject, 'Versendet') ? $mail->date?->format('Y-m-d') : null);
         }
 
@@ -150,5 +155,21 @@ final class Amazon implements MultiOrderMailParser
     private static function stem(string $title): string
     {
         return mb_substr(rtrim($title, '.… '), 0, 20);
+    }
+
+    /** @param list<\Taxmod\Core\Import\ProposalLine> $lines */
+    private static function sum(array $lines): ?string
+    {
+        $cents = 0;
+
+        foreach ($lines as $line) {
+            if ($line->unitPrice === null || $line->quantity === null) {
+                return null;
+            }
+
+            $cents += (int) round((float) $line->unitPrice * $line->quantity * 100);
+        }
+
+        return $lines === [] ? null : Text::decimal($cents / 100);
     }
 }
