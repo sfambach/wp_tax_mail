@@ -82,12 +82,13 @@ final class Amazon implements MultiOrderMailParser
         foreach ($orders as $number => $order) {
             $sellers = array_keys($order['sellers']);
             // The confirmation's «Summe» reads 0.00 €; the items carry their prices, and Amazon.de ships them free or
-            // names no shipping cost, so their sum is the order total.
+            // includes shipping in them, so their sum is the order total.
             $total = $order['total'] ?? self::sum($order['items']->lines());
             $proposals[] = new OrderProposal($this->shopName(), (string) $number, $kind,
                 $kind === ProposalKind::Ordered ? $mail->date?->format('Y-m-d') : null, 'EUR', $order['items']->lines(),
+                // Shipping is included in the item prices (owner 2026-10-25: «versandkosten sind meist inclusive»).
                 // A status mail's «Summe» covers only the parcel, not the order.
-                null, $kind === ProposalKind::Ordered ? $total : null, count($sellers) === 1 ? $sellers[0] : null,
+                $kind === ProposalKind::Ordered ? '0' : null, $kind === ProposalKind::Ordered ? $total : null, count($sellers) === 1 ? $sellers[0] : null,
                 shippedDate: $kind === ProposalKind::Shipped && str_starts_with($mail->subject, 'Versendet') ? $mail->date?->format('Y-m-d') : null);
         }
 
