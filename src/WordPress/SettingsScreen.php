@@ -143,7 +143,7 @@ final class SettingsScreen
             . '<td><input type="file" id="taxmail-export-file" name="export" accept=".csv,text/csv" form="' . esc_attr(Plugin::EXPORT_FORM) . '"></td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-scope">' . esc_html__('Which orders', 'taxmail') . '</label></th>'
             . '<td><select id="taxmail-export-scope" name="scope" form="' . esc_attr(Plugin::EXPORT_FORM) . '">'
-            . '<option value="technical">' . esc_html__('Only technical departments (electronics, computers, tools, office …)', 'taxmail') . '</option>'
+            . '<option value="technical">' . esc_html__('Only technical (by department and product name: electronics, cables, tools …)', 'taxmail') . '</option>'
             . '<option value="all">' . esc_html__('All', 'taxmail') . '</option></select></td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-since">' . esc_html__('Ordered from', 'taxmail') . '</label></th>'
             . '<td><input type="date" id="taxmail-export-since" name="since" form="' . esc_attr(Plugin::EXPORT_FORM) . '"> '

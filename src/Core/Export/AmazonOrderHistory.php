@@ -23,13 +23,27 @@ final class AmazonOrderHistory
         'Wireless Phone Accessory', 'Office Product', 'Automotive', 'Battery', 'Software Download', 'CD-ROM',
     ];
 
+    /** Departments whose items are never material, whatever their name says (a book on 3D printing, a coffee adapter). */
+    public const NEVER_TECHNICAL = [
+        'Grocery', 'Wine', 'Apparel', 'Shoes', 'Sports Apparel', 'Taschenbuch', 'Gebundene Ausgabe', 'Perfect Paperback',
+        'Paperback', 'Hardcover', 'Unbekannter Einband', 'Taschenbuchformat', 'Taschenbuch für den Massenmarkt',
+        'Health and Beauty', 'Baby Product', 'Audio CD', 'DVD', 'Blu-ray', 'MP3 Music', 'MP3 CD', 'Ecard Gift Certificate',
+        'Paper Gift Certificate', 'Calendar', 'Jewelry', 'Watch', 'Luggage',
+    ];
+
+    /**
+     * Words in a product name that mean material. Amazon's department alone misses much of it: capacitors under «Not
+     * Available», an SSD under «Accessory», servos under «Toy» (sample of his export, 2026-10-28).
+     */
+    private const TECHNICAL_WORDS = '/\b(?:kondensator|widerstand|resistor|capacitor|transistor|diode|led\b|leds\b|arduino|esp32|esp8266|esp-?01|raspberry|pi pico|attiny|atmega|stm32|mikrocontroller|microcontroller|platine|lochraster|breadboard|steckbrett|jumper|dupont|löt|solder|flussmittel|entlötlitze|multimeter|oszilloskop|oscilloscope|\w*netzteil|labornetzteil|power supply|step.?down|boost|spannungsregler|regulator|relais|relay|sensor|servo|stepper|schrittmotor|eeprom|eprom|sram|spi\b|i2c\b|uart|usb|hdmi|vga|displayport|ssd\b|festplatte|hard drive|hdd\b|sd.?karte|micro ?sd|speicherkarte|ddr\d|mainboard|motherboard|grafikkarte|prozessor|cpu\b|lüfter|kühlkörper|wärmeleit|switch\b|router|wlan|wifi|ethernet|netzwerkkabel|patchkabel|rj45|keystone|bluetooth|\w*adapter|\w*kabel|\w*stecker|buchse|klemme|crimp|schrumpfschlauch|akku|batterie|lipo|18650|ladegerät|charger|display|oled|lcd|tft|tastatur|keyboard|maus\b|mouse|webcam|kamera|drucker|filament|3d.?druck|pla\b|petg|messschieber|zange|pinzette|schraubendreher|bit.?satz|bohrer|bohrmaschine|akkuschrauber|säge|feile|schraube|mutter|abstandshalter|gehäuse|enclosure|lautsprecher|verstärker|amplifier|potentiometer|poti|taster|schalter|encoder|joystick|commodore|amiga|atari|c64|gameboy|sega|nintendo|playstation|isa\b|floppy|diskette|cf.?karte|compactflash|sata|scsi|programmer|programmiergerät|logic analyzer|logikanalysator|jtag|ttl|rs232|max232|ch340|cp2102|ftdi|tl866|xgecu|kicad|nema|ide-|\w*modul\b|modules?\b|ics?\b|ram\b|buck\b)/iu';
+
     private const COLUMNS = ['Order ID', 'Order Date', 'Order Status', 'ASIN', 'Product Name', 'Original Quantity',
         'Unit Price', 'Unit Price Tax', 'Shipping Charge', 'Total Amount', 'Currency', 'Ship Date',
         'Carrier Name & Tracking Number', 'Department'];
 
     /**
      * @param ?string $since first order date kept, «Y-m-d»; null keeps all
-     * @param ?list<string> $departments keep an order only if one of its items is in one of these; null keeps all
+     * @param ?list<string> $departments keep an order only if one of its items is in one of these or named like material; null keeps all
      */
     public function __construct(private readonly ?string $since = null, private readonly ?array $departments = null)
     {
@@ -72,8 +86,18 @@ final class AmazonOrderHistory
             return false;
         }
 
-        return $this->departments === null
-            || array_filter($items, fn (array $item): bool => in_array($item['Department'], $this->departments, true)) !== [];
+        return $this->departments === null || array_filter($items, $this->technical(...)) !== [];
+    }
+
+    /**
+     * In one of the chosen departments, or named like material outside the departments that never are.
+     *
+     * @param array<string, string> $item
+     */
+    private function technical(array $item): bool
+    {
+        return in_array($item['Department'], (array) $this->departments, true)
+            || (! in_array($item['Department'], self::NEVER_TECHNICAL, true) && preg_match(self::TECHNICAL_WORDS, $item['Product Name']) === 1);
     }
 
     /** @param non-empty-list<array<string, string>> $items */

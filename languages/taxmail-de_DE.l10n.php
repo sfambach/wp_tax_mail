@@ -59,7 +59,7 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     'Forget the upload' => 'Upload verwerfen',
     'File' => 'Datei',
     'Which orders' => 'Welche Bestellungen',
-    'Only technical departments (electronics, computers, tools, office …)' => 'Nur Technik-Abteilungen (Elektronik, Computer, Werkzeug, Büro …)',
+    'Only technical (by department and product name: electronics, cables, tools …)' => 'Nur Technik (nach Abteilung und Produktname: Elektronik, Kabel, Werkzeug …)',
     'All' => 'Alle',
     'Ordered from' => 'Bestellt ab',
     'Empty: every year.' => 'Leer: alle Jahre.',
