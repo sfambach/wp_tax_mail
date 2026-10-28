@@ -11,7 +11,8 @@ use Taxmod\Core\Import\ProposalLine;
  * Amazon's «Order History.csv» from «Meine Daten anfordern» — the orders from before the mail parser, one proposal per
  * order. A row is one item of one shipment; its «Total Amount» is the item's gross price times the quantity plus the
  * row's shipping charge, so the order total is their sum. Addresses and payment columns are not read. A cancelled
- * order is left out; a closed one counts as delivered, since Amazon writes no delivery date.
+ * order is left out. A closed one counts as shipped, not delivered: Amazon writes no delivery date, and the inbox
+ * would write the day it is taken as «received» (the WE thread, 2026-10-28: «kein erfundenes Eingegangen am»).
  *
  * @see docs/pakete/mail/konzept.md (modeller)
  */
@@ -136,7 +137,7 @@ final class AmazonOrderHistory
         return new OrderProposal(
             'Amazon',
             $number,
-            $open ? ProposalKind::Ordered : ProposalKind::Delivered,
+            $open ? ProposalKind::Ordered : ProposalKind::Shipped,
             substr($items[0]['Order Date'], 0, 10),
             self::given($items[0]['Currency']) ?? 'EUR',
             $lines,

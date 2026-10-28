@@ -28,7 +28,7 @@ final class AmazonOrderHistoryTest extends TestCase
         self::assertSame([
             'platform'       => 'Amazon',
             'order_number'   => '305-1111111-1111111',
-            'kind'           => 'delivered',
+            'kind'           => 'shipped',
             'order_date'     => '2026-03-27',
             'currency'       => 'EUR',
             'lines'          => [
