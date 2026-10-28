@@ -11,6 +11,7 @@ use TaxMail\Core\Import\MailFetcher;
 use TaxMail\Core\Label\DhlLabelMail;
 use TaxMail\Core\Mail\MailMessage;
 use TaxMail\Core\Mail\MimeParser;
+use TaxMail\Core\Mailbox\CarrierNotice;
 use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Mailbox\SenderTally;
@@ -59,6 +60,9 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
 
     /** A backlog mail that ended the last slice without a word (memory, time limit) — skipped next time. */
     private const TRYING = 'taxmail_backlog_trying';
+
+    /** How far «Nicht erkannt» was read again, and for which parsers. */
+    private const RECHECK = 'taxmail_recheck';
 
     /** Mails per fetch — keeps a run inside Strato's time limits; the rest comes with the next run. */
     private const LIMIT = 60;
@@ -125,6 +129,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
 
             if ($canMove) {
                 $this->sweepLabels($client);
+                $this->recheckUnrecognised($client);
             }
 
             return new FetchBatch($proposals, self::cursor($status->uidValidity, $lastUid));
@@ -156,6 +161,54 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 $client->move($uid, $imported);
             }
         }
+    }
+
+    /**
+     * «Nicht erkannt» is read again, a slice per fetch, whenever the parsers change — a new version or one switched on.
+     * A mail a parser now reads goes back to the inbox, where its new UID lies past the cursor and the next fetch takes
+     * it; a carrier's notice goes to «Verworfen». What still nobody reads stays.
+     *
+     * @throws ImapException
+     */
+    private function recheckUnrecognised(ImapClient $client): void
+    {
+        $folder = FolderPlan::onServer($this->settings->folders->unrecognised, $client->delimiter());
+
+        if (! in_array($folder, $client->folders(), true)) {
+            return;
+        }
+
+        $registry = Plugin::registry($this->settings);
+        $signature = Plugin::VERSION . ':' . implode(',', array_keys(array_filter($this->settings->parsers)));
+        $state = get_option(self::RECHECK, []);
+        $from = is_array($state) && ($state['signature'] ?? '') === $signature ? (int) ($state['uid'] ?? 0) : 0;
+
+        $client->select($folder);
+        $pending = $client->uidsAfter($from);
+
+        if ($pending === []) {
+            update_option(self::RECHECK, ['signature' => $signature, 'uid' => $from], false);
+
+            return;
+        }
+
+        $fetcher = new MailFetcher($registry);
+        $inbox = FolderPlan::onServer($this->settings->folders->inbox, $client->delimiter());
+        $discarded = FolderPlan::onServer($this->settings->folders->discarded, $client->delimiter());
+
+        foreach (array_slice($pending, 0, self::LIMIT) as $uid) {
+            $result = $fetcher->fetchOne($client, $uid);
+
+            if ($result->outcome === FetchOutcome::Proposed || $result->outcome === FetchOutcome::NoReceipt) {
+                $client->move($uid, $inbox);
+            } elseif ($result->outcome === FetchOutcome::Unrecognised && CarrierNotice::is($result->mail)) {
+                $client->move($uid, $discarded);
+            }
+
+            $from = $uid;
+        }
+
+        update_option(self::RECHECK, ['signature' => $signature, 'uid' => $from], false);
     }
 
     /**
@@ -485,7 +538,8 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             return SortRules::resolve($ruled, $this->settings->folders);
         }
 
-        if ($result->outcome === FetchOutcome::NoReceipt || ($proposal !== null && $proposal->kind === ProposalKind::Sold)) {
+        if ($result->outcome === FetchOutcome::NoReceipt || ($proposal !== null && $proposal->kind === ProposalKind::Sold)
+            || ($result->outcome === FetchOutcome::Unrecognised && CarrierNotice::is($result->mail))) {
             return $this->settings->folders->discarded;
         }
 
