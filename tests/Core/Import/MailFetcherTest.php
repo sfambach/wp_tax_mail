@@ -60,6 +60,17 @@ final class MailFetcherTest extends TestCase
         self::assertSame('2026-10-23', $fetched[1]->proposal?->shippedDate);
     }
 
+    public function testSchemaOrgTrackingNumberIsReadForAStatusMail(): void
+    {
+        $raw = "From: a@shop.de\nSubject: Versandt 1\nContent-Type: text/html\n\n<div itemscope><meta itemprop=\"trackingNumber\" content=\"00340435086270889742\"></div>";
+        $script = "* OK\r\n* SEARCH 11\r\nA1 OK\r\n* 1 FETCH (UID 11 BODY[] {" . strlen($raw) . "}\r\n$raw)\r\nA2 OK\r\n";
+
+        $fetched = (new MailFetcher(new ParserRegistry([self::shop()], ['shop' => true])))
+            ->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
+
+        self::assertSame(['00340435086270889742'], $fetched[0]->proposal?->trackingNumbers);
+    }
+
     public function testAMailWithSeveralOrdersGivesEachOne(): void
     {
         $raw = "From: a@multi.de\nSubject: Bestellt\nMessage-ID: <m@multi.de>\n\nx";

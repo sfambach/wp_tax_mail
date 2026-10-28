@@ -144,6 +144,13 @@ final class ShopParsersTest extends TestCase
         ], $order['lines']);
     }
 
+    public function testConradOnItsWayIsShippedNotDelivered(): void
+    {
+        $order = self::read('c3');
+
+        self::assertSame(['2020147197', 'shipped'], [$order['order_number'], $order['kind']]);
+    }
+
     public function testAliExpressAwaitingConfirmation(): void
     {
         $order = self::read('a1');

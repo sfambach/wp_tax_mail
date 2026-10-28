@@ -13,6 +13,9 @@ eml('m1','Mouser <sales@eu.mouser.com>','Mouser Order Confirmation 12345678',
     ['Web Order Number','12345678','595-LM317TG','LM317TG','Linear Voltage Regulator','OCT 16, 2024','5','0,61','3,05','566-0206F','Merchandise Total','3,05','Shipping','20,00','VAT','4,38'])
 eml('c1','Conrad <service@conrad.de>','Bestellt: Ihre Bestellung 1234567890',
     ['Ihre Bestellung','Lötzinn 100g','Menge: 2','Einzelpreis 7,99 €','Artikelnummer 123456','Versandkosten','4,95 €','Summe','20,93 €'])
+eml('c3','Conrad Electronic <noreply@conrad.de>','Auftrag 2020147197 Sendungsinformation zu Ihrem Paket',
+    ['Ihre Bestellung 2020147197 wird voraussichtlich heute zugestellt.','Bestellt','Versendet','Zugestellt','Guten Tag,',
+     'Ihre Bestellung 2020147197 ist nun fast bei Ihnen. Die Zustellung Ihrer Bestellung erfolgt voraussichtlich heute .','Sendung verfolgen'])
 eml('c2','Conrad <noreply@conrad.de>','Bestellt: Yageo MF0207 und 1 weitere Artikel - 2020147197',
     ['Vielen Dank für Ihre Bestellung!','wir haben Ihre Bestellung','2020147197','erhalten','Bestellübersicht','24.10.2026',
      'Yageo MF0207F220RH Metallschicht-Widerstand 220 Ω 1 St.','Lieferung: Mi., 28.10.2026','Menge: 100 Stück','Einzelpreis: € 0,02','Artikelnummer: 1417626','Verkäufer: Conrad Electronic','€ 1,62',

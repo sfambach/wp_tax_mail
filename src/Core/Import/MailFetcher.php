@@ -85,6 +85,13 @@ final class MailFetcher
                 $row['order_date'] = null;
             }
 
+            // Shops that send through a tracking service (Conrad via parcelLab) mark the parcel with schema.org's
+            // «trackingNumber» while the text only links it. Read for every parser that found none of its own.
+            if ($row['tracking'] === [] && in_array($proposal->kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)
+                && preg_match_all('/itemprop="trackingNumber"\s+content="([A-Za-z0-9]{8,40})"/', $mail->html, $found) > 0) {
+                $row['tracking'] = array_values(array_unique($found[1]));
+            }
+
             return OrderProposal::fromArray($row);
         }, $proposals);
 

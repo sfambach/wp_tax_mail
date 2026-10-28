@@ -51,7 +51,9 @@ final class Conrad implements OrderMailParser
         }
 
         if (! str_starts_with($subject, 'Bestellt')) {
-            $delivered = str_contains($subject, 'geliefert') || str_contains(mb_substr($text, 0, 300), 'zugestellt');
+            // «wird voraussichtlich heute zugestellt» is on its way, not delivered (parcelLab, 2026-10-28).
+            $head = mb_substr($text, 0, 300);
+            $delivered = str_contains($subject, 'geliefert') || (str_contains($head, 'zugestellt') && ! str_contains($head, 'voraussichtlich'));
 
             return new OrderProposal($this->shopName(), $match[1], $delivered ? ProposalKind::Delivered : ProposalKind::Shipped,
                 counterparty: self::MERCHANT, shippedDate: $delivered ? null : $mail->date?->format('Y-m-d'));
