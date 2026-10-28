@@ -47,6 +47,7 @@ final class SettingsScreen
         }
 
         $html .= $this->rules($settings, $sendersFailure);
+        $html .= self::export();
 
         $html .= '<h2>' . esc_html__('Folders', 'taxmail') . '</h2><table class="form-table" role="presentation">';
 
@@ -111,6 +112,43 @@ final class SettingsScreen
         }
 
         return $html;
+    }
+
+    /**
+     * Amazon's «Order History.csv» for the orders from before the parser. The fields belong to the form Plugin::exportForm()
+     * prints after the page's own one (attribute «form»), since a form cannot hold another.
+     */
+    private static function export(): string
+    {
+        $html = '<h2>' . esc_html__('Amazon order history', 'taxmail') . '</h2><p>'
+            . esc_html__('For the orders from before the mails: in Amazon, «Meine Daten anfordern», then upload «Order History.csv» from the archive. Each fetch hands the next 100 orders to the inbox; cancelled orders are left out. Addresses and payment data in the file are not kept.', 'taxmail')
+            . '</p>';
+        $done = get_transient(Plugin::EXPORT_DONE . get_current_user_id());
+        delete_transient(Plugin::EXPORT_DONE . get_current_user_id());
+
+        if (is_string($done)) {
+            $html .= '<div class="notice notice-info inline"><p>' . esc_html($done) . '</p></div>';
+        }
+
+        $progress = ExportQueue::progress();
+
+        if ($progress['total'] > 0) {
+            /* translators: 1: orders handed to the inbox, 2: orders in the upload */
+            $html .= '<p>' . esc_html(sprintf(__('%1$d of %2$d orders handed to the inbox.', 'taxmail'), $progress['handed'], $progress['total']))
+                . ' ' . self::actionLink('taxmail_export_delete', __('Forget the upload', 'taxmail')) . '</p>';
+        }
+
+        return $html . '<table class="form-table" role="presentation">'
+            . '<tr><th scope="row"><label for="taxmail-export-file">' . esc_html__('File', 'taxmail') . '</label></th>'
+            . '<td><input type="file" id="taxmail-export-file" name="export" accept=".csv,text/csv" form="' . esc_attr(Plugin::EXPORT_FORM) . '"></td></tr>'
+            . '<tr><th scope="row"><label for="taxmail-export-scope">' . esc_html__('Which orders', 'taxmail') . '</label></th>'
+            . '<td><select id="taxmail-export-scope" name="scope" form="' . esc_attr(Plugin::EXPORT_FORM) . '">'
+            . '<option value="technical">' . esc_html__('Only technical departments (electronics, computers, tools, office …)', 'taxmail') . '</option>'
+            . '<option value="all">' . esc_html__('All', 'taxmail') . '</option></select></td></tr>'
+            . '<tr><th scope="row"><label for="taxmail-export-since">' . esc_html__('Ordered from', 'taxmail') . '</label></th>'
+            . '<td><input type="date" id="taxmail-export-since" name="since" form="' . esc_attr(Plugin::EXPORT_FORM) . '"> '
+            . '<span class="description">' . esc_html__('Empty: every year.', 'taxmail') . '</span></td></tr></table>'
+            . '<p><button type="submit" class="button button-secondary" form="' . esc_attr(Plugin::EXPORT_FORM) . '">' . esc_html__('Read the file', 'taxmail') . '</button></p>';
     }
 
     /** The mailbox fields; the page draws them under «Access», with its buttons beneath (D-981). */

@@ -2,6 +2,7 @@
 
 namespace TaxMail\WordPress;
 
+use TaxMail\Core\Export\AmazonOrderHistory;
 use TaxMail\Core\Imap\ImapClient;
 use TaxMail\Core\Imap\ImapException;
 use TaxMail\Core\Imap\TlsSocketStream;
@@ -26,13 +27,19 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.4.3';
+    public const VERSION     = '0.5.0';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
 
     /** Why the last sender count failed, for the redirect — per user, ten minutes. */
     private const SENDERS_FAILURE = 'taxmail_senders_failure_';
+
+    /** What the last export upload brought, for the redirect. */
+    public const EXPORT_DONE = 'taxmail_export_done_';
+
+    /** The id of the upload form, printed outside the Configuration page's own form. */
+    public const EXPORT_FORM = 'taxmail-export';
 
     /** What the last «Save samples» wrote, for the redirect. */
     public const SAMPLES_DONE = 'taxmail_samples_done_';
@@ -79,6 +86,9 @@ final class Plugin
         add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
         add_action('admin_post_taxmail_samples', $plugin->handleSamples(...));
         add_action('admin_post_taxmail_samples_delete', $plugin->handleSamplesDelete(...));
+        add_action('admin_post_taxmail_export', $plugin->handleExport(...));
+        add_action('admin_post_taxmail_export_delete', $plugin->handleExportDelete(...));
+        add_action('admin_footer', self::exportForm(...));
         add_filter(ShippingLabels::FILTER, ShippingLabels::filter(...));
         add_filter('wp_php_error_message', self::explainFatal(...), 10, 2);
     }
@@ -207,6 +217,62 @@ final class Plugin
         $this->guard('taxmail_samples_delete');
         SampleMails::deleteAll();
         $this->back();
+    }
+
+    /**
+     * Reads an uploaded «Order History.csv» into the export queue. Only the proposals are kept; the upload itself is the
+     * temporary file PHP removes after the request.
+     */
+    public function handleExport(): void
+    {
+        $this->guard('taxmail_export');
+
+        $file = $_FILES['export'] ?? null;
+        $scope = isset($_POST['scope']) && sanitize_key(wp_unslash((string) $_POST['scope'])) === 'all' ? 'all' : 'technical';
+        $since = isset($_POST['since']) ? sanitize_text_field(wp_unslash((string) $_POST['since'])) : '';
+        $since = preg_match('/^\d{4}-\d{2}-\d{2}$/', $since) === 1 ? $since : null;
+
+        if (! is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || ! is_uploaded_file((string) $file['tmp_name'])
+            || (int) $file['size'] > 50 * MB_IN_BYTES) {
+            $message = __('No file arrived (or it is larger than 50 MB).', 'taxmail');
+        } else {
+            try {
+                $proposals = (new AmazonOrderHistory($since, $scope === 'all' ? null : AmazonOrderHistory::TECHNICAL))
+                    ->read((string) file_get_contents((string) $file['tmp_name']));
+                $message = ExportQueue::store($proposals)
+                    /* translators: %d: number of orders */
+                    ? sprintf(__('%d orders read; each fetch hands the next 100 to the inbox.', 'taxmail'), count($proposals))
+                    : __('The orders could not be stored under wp-content.', 'taxmail');
+            } catch (\InvalidArgumentException $failure) {
+                /* translators: %s: why */
+                $message = sprintf(__('That is not the file: %s', 'taxmail'), $failure->getMessage());
+            }
+        }
+
+        set_transient(self::EXPORT_DONE . get_current_user_id(), $message, 10 * MINUTE_IN_SECONDS);
+        $this->back();
+    }
+
+    public function handleExportDelete(): void
+    {
+        $this->guard('taxmail_export_delete');
+        ExportQueue::clear();
+        $this->back();
+    }
+
+    /** The upload form, empty: its fields stand in the «Mail» tab and name it (attribute «form»). */
+    public static function exportForm(): void
+    {
+        // Read-only look at which screen this is; nothing is acted on.
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
+
+        if ($page !== 'taxmod-settings' || $tab !== self::TAB || ! current_user_can(self::CAPABILITY)) {
+            return;
+        }
+
+        echo '<form id="' . esc_attr(self::EXPORT_FORM) . '" method="post" enctype="multipart/form-data" action="' . esc_url(admin_url('admin-post.php')) . '">'
+            . '<input type="hidden" name="action" value="taxmail_export">' . wp_nonce_field('taxmail_export', '_wpnonce', true, false) . '</form>';
     }
 
     /**

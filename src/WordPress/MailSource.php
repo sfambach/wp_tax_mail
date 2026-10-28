@@ -132,6 +132,8 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 $this->recheckUnrecognised($client);
             }
 
+            array_push($proposals, ...self::fromExport());
+
             return new FetchBatch($proposals, self::cursor($status->uidValidity, $lastUid));
         });
     }
@@ -209,6 +211,19 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         }
 
         update_option(self::RECHECK, ['signature' => $signature, 'uid' => $from], false);
+    }
+
+    /**
+     * The next slice of an uploaded order export (ExportQueue), with no mail behind it.
+     *
+     * @return list<IncomingProposal>
+     */
+    private static function fromExport(): array
+    {
+        return array_map(static fn (OrderProposal $proposal): IncomingProposal => new IncomingProposal($proposal, [
+            /* translators: 1: platform, 2: order date */
+            'origin' => sprintf(__('From the %1$s order export, ordered %2$s.', 'taxmail'), $proposal->platform, $proposal->orderDate ?? '?'),
+        ]), ExportQueue::take());
     }
 
     /**
@@ -348,6 +363,10 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
      */
     public function restart(): void
     {
+        // The inbox forgot the open orders of an upload too; they come again from the first.
+        ExportQueue::rewind();
+        delete_option(self::RECHECK);
+
         $this->locked(function (ImapClient $client): void {
             $folders = $client->folders();
 
@@ -383,6 +402,11 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             InboxStatus::Discarded => $this->settings->folders->discarded,
             InboxStatus::Open      => null,
         };
+
+        // An order from an uploaded export has no mail to move.
+        if (! isset($evidence['uid']) && ! isset($evidence['message_id'])) {
+            return;
+        }
 
         // A mail that confirms several orders stays until the backlog finds all of them in the model; moving it with the
         // first take would leave the others without their mail.
