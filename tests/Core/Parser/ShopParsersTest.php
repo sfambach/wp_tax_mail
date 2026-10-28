@@ -117,6 +117,14 @@ final class ShopParsersTest extends TestCase
         self::assertSame([['title' => 'LM317TG Linear Voltage Regulator', 'quantity' => 5.0, 'unit_price' => '0.61', 'article_number' => '595-LM317TG']], $order['lines']);
     }
 
+    public function testEbayEnglishDeliveryMail(): void
+    {
+        $order = self::read('e11');
+
+        self::assertSame(['09-15343-88398', 'delivered', 'suswl77'], [$order['order_number'], $order['kind'], $order['counterparty']]);
+        self::assertSame([['title' => 'Creative Soundblaster 16 CT2940 ISA', 'quantity' => 1.0, 'unit_price' => null, 'article_number' => '237124172289']], $order['lines']);
+    }
+
     public function testConradOrdered(): void
     {
         $order = self::read('c1');

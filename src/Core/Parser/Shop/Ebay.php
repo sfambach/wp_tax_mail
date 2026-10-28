@@ -54,11 +54,26 @@ final class Ebay implements OrderMailParser
             return $this->aboutOwnSale($mail);
         }
 
-        if (in_array('Bestellnummer:', $mail->lines(), true) && preg_match(self::ADVERT, $mail->subject) !== 1) {
+        if (in_array('Bestellnummer:', self::german($mail->lines()), true) && preg_match(self::ADVERT, $mail->subject) !== 1) {
             return $this->purchase($mail);
         }
 
         return $this->withoutOrderNumber($mail);
+    }
+
+    /**
+     * eBay sends some mails in English («PACKAGE DELIVERED: …» with «Order number:», «Item ID:», «Seller:»); their labels
+     * are read as the German ones, so one reading serves both.
+     *
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private static function german(array $lines): array
+    {
+        $labels = ['Order number:' => 'Bestellnummer:', 'Item ID:' => 'Artikelnr.:', 'Seller:' => 'Verkäufer:', 'Price:' => 'Preis:',
+            'Tracking number:' => 'Sendungsnummer:'];
+
+        return array_map(static fn (string $line): string => $labels[$line] ?? $line, $lines);
     }
 
     private static function kind(string $subject): ProposalKind
@@ -67,16 +82,16 @@ final class Ebay implements OrderMailParser
 
         return match (true) {
             str_contains($subject, 'rückerstattung veranlasst')                       => ProposalKind::Refunded,
-            str_contains($subject, 'zugestellt') || str_contains($subject, 'geliefert') => ProposalKind::Delivered,
-            (bool) preg_match('/zustellung|update zu|versanddienstleister|sendung ist jetzt|verschickt/u', $subject) => ProposalKind::Shipped,
-            str_contains($subject, 'bestätigt')                                       => ProposalKind::Ordered,
+            (bool) preg_match('/zugestellt|geliefert|delivered/u', $subject)          => ProposalKind::Delivered,
+            (bool) preg_match('/zustellung|update zu|versanddienstleister|sendung ist jetzt|verschickt|shipped|on its way|out for delivery/u', $subject) => ProposalKind::Shipped,
+            str_contains($subject, 'bestätigt') || str_contains($subject, 'order confirmed') => ProposalKind::Ordered,
             default                                                                   => ProposalKind::Other,
         };
     }
 
     private function purchase(MailMessage $mail): OrderProposal
     {
-        $lines = $mail->lines();
+        $lines = self::german($mail->lines());
         $kind = self::kind($mail->subject);
         $number = null;
         $seller = null;

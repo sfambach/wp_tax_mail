@@ -36,6 +36,9 @@ eml('z1','"Amazon.de" <bestellbestaetigung@amazon.de>','Bestellt: „ESP32 DevKi
 eml('z2','"Amazon.de" <order-update@amazon.de>','Zugestellt: „ESP32 DevKit...“',
     ['Dein Paket wurde zugestellt!','Heute zugestellt','Bestellnr. \u202b304-1111111-2222222','Lieferung verfolgen'], date='Thu, 22 Oct 2026 09:37:32 +0200')
 E='eBay <ebay@ebay.com>'
+eml('e11',E,'📦PACKAGE DELIVERED: Creative Soundblaste...',
+    ['Dropped off on Wed, Oct 28','Your package is here. Now for the good part!','View order details','Creative Soundblaster 16 CT2940 ISA',
+     'Item ID:','237124172289','237124172289','Order number:','09-15343-88398','09-15343-88398','Seller:','suswl77','suswl77','eBay Money Back Guarantee'])
 eml('e1',E,'Bestellung bestätigt: ISA Floppy Controller',
     ['Danke für Ihren Kauf','ISA 8-bit Floppy Multi-I/O Controller Zilog','Preis:','EUR 45,00','Artikelnr.:','123456789012','Lieferung ca.:','Fr, 18. Okt','Bestellnummer:','27-13610-49402','Verkäufer:','r-o-r-c','Gesamtbetrag:','Zwischensumme (1 Artikel)','EUR 45,00','Versand','EUR 6,99','Gesamtbetrag wird abgebucht','EUR 51,99','eBay-Käuferschutz'])
 eml('e2',E,'Ihre Bestellung wurde verschickt',
