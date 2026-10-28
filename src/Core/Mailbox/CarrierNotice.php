@@ -2,7 +2,7 @@
 
 namespace TaxMail\Core\Mailbox;
 
-use TaxMail\Core\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MailMessage;
 
 /**
  * A parcel service's own notice («Ihre Sendung kommt heute»): no order number, only a tracking number, and the shop's

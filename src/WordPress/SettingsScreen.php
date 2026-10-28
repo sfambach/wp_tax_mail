@@ -5,7 +5,7 @@ namespace TaxMail\WordPress;
 /**
  * The «Mail» tab on the modeller's Configuration page (D-945). The page draws one order for every module (D-981): the
  * mailbox fields from account() under «Access» with Save, «Test connection» and «Delete access data», then the fetch
- * interval, then render() — parsers on/off, sorting rules, folder names. «Count senders» is a link, since a form cannot
+ * interval, then render() — the shop modules reading, sorting rules, folder names. «Count senders» is a link, since a form cannot
  * hold another. Fetching, the backlog, the search and starting over are buttons in the modeller's inbox (D-953).
  * Returns its HTML (CD-8).
  */
@@ -13,7 +13,7 @@ final class SettingsScreen
 {
     public function render(Settings $settings, string $sendersFailure, string $inboxUrl): string
     {
-        $registry = Plugin::registry($settings);
+        $registry = Plugin::registry();
         // Title and version are drawn by the Configuration page (D-968).
         $html = '';
         $failure = (string) get_option(MailSource::LAST_FAILURE, '');
@@ -29,22 +29,13 @@ final class SettingsScreen
             '<a href="' . esc_url($inboxUrl) . '">' . esc_html__('Inbox', 'taxmod') . '</a>'
         ) . '</p>';
 
-        $html .= '<h2>' . esc_html__('Mail connections', 'taxmail') . '</h2>';
-
-        if ($registry->all() === []) {
-            $html .= '<p>' . esc_html__('No parser is installed yet.', 'taxmail') . '</p>';
-        } else {
-            $html .= '<table class="widefat striped" style="max-width:40em"><caption class="screen-reader-text">'
-                . esc_html__('Mail connections', 'taxmail') . '</caption><tbody>';
-
-            foreach ($registry->all() as $key => $parser) {
-                $html .= '<tr><td><label><input type="checkbox" name="parsers[' . esc_attr($key) . ']" value="1"'
-                    . checked($settings->parsers[$key] ?? false, true, false) . '> '
-                    . esc_html($parser->shopName()) . '</label></td></tr>';
-            }
-
-            $html .= '</tbody></table>';
-        }
+        // ⚠️ *D-1006: «jede anbindung wird ein api modul … in mail bleibt nur noch mail und postfach einstellungen». Which
+        // shops are read is which shop modules are active; this list only says so.*
+        $html .= '<h2>' . esc_html__('Shop modules reading this mailbox', 'taxmail') . '</h2><p>'
+            . ($registry->all() === []
+                ? esc_html__('None is active, so no mails are fetched. Activate a shop module such as «Taxmod Amazon».', 'taxmail')
+                : esc_html(implode(', ', array_map(static fn ($parser): string => $parser->shopName(), $registry->all()))))
+            . '</p>';
 
         $html .= $this->rules($settings, $sendersFailure);
         $html .= self::export();
@@ -191,7 +182,7 @@ final class SettingsScreen
             esc_html__('Look up the IMAP server of your mail provider, with SSL on port 993 — for Strato: imap.strato.de.', 'taxmail'),
             esc_html__('Enter server, port, user (the full address) and password under «Access», then Save. The password is stored encrypted.', 'taxmail'),
             esc_html__('Click «Test connection» beneath them. It logs in and creates the folders «Importiert», «Verworfen» and «Nicht erkannt».', 'taxmail'),
-            esc_html__('Choose how often to fetch under «Fetching», tick the shops under «Mail connections», and Save.', 'taxmail'),
+            esc_html__('Choose how often to fetch under «Fetching» and Save. Activate the shop module of every shop whose mails come here (Taxmod Amazon, Taxmod eBay …).', 'taxmail'),
             sprintf(
                 /* translators: %s: link to the modeller's inbox */
                 esc_html__('Open the %s and click «Fetch now». Older mails come with «Sort the backlog».', 'taxmail'),

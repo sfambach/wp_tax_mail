@@ -2,7 +2,7 @@
 
 namespace TaxMail\Core\Mailbox;
 
-use TaxMail\Core\Mail\MimeParser;
+use Taxmod\Core\Import\Mail\MimeParser;
 
 /**
  * Counts the senders of a folder from their «From» headers, most frequent first — the list he picks sorting rules from

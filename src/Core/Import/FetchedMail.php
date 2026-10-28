@@ -2,7 +2,7 @@
 
 namespace TaxMail\Core\Import;
 
-use TaxMail\Core\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MailMessage;
 use Taxmod\Core\Import\OrderProposal;
 
 /**

@@ -9,8 +9,8 @@ use TaxMail\Core\Import\FetchOutcome;
 use TaxMail\Core\Import\FetchedMail;
 use TaxMail\Core\Import\MailFetcher;
 use TaxMail\Core\Label\DhlLabelMail;
-use TaxMail\Core\Mail\MailMessage;
-use TaxMail\Core\Mail\MimeParser;
+use Taxmod\Core\Import\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MimeParser;
 use TaxMail\Core\Mailbox\CarrierNotice;
 use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
@@ -109,13 +109,21 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 return new FetchBatch([], self::cursor($status->uidValidity, self::lastUid($client, $status->uidNext)));
             }
 
+            $registry = Plugin::registry();
+
+            // ⚠️ *No shop module active — between installing this version and the shop modules, say: every mail would land
+            // in «Nicht erkannt». Wait instead; the cursor stays where it is (D-1006).*
+            if ($registry->all() === []) {
+                return new FetchBatch(self::fromExport(), $cursor);
+            }
+
             // New UIDVALIDITY: the old numbers mean nothing. Start over; the Message-ID keeps proposals from doubling.
             $lastUid = $validity === $status->uidValidity ? $lastUid : 0;
             $proposals = [];
             $canMove = $client->canMove();
             $this->ensureRuleFolders($client);
 
-            foreach ((new MailFetcher(Plugin::registry($this->settings)))->fetch($client, $lastUid, self::LIMIT) as $result) {
+            foreach ((new MailFetcher($registry))->fetch($client, $lastUid, self::LIMIT) as $result) {
                 $target = $this->tookLabel($result) ? $this->settings->folders->imported : $this->sortTarget($result, $this->outcomeFolder($result->outcome));
 
                 if ($target === null && $result->outcome === FetchOutcome::Proposed && $result->proposal !== null) {
@@ -166,7 +174,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
     }
 
     /**
-     * «Nicht erkannt» is read again, a slice per fetch, whenever the parsers change — a new version or one switched on.
+     * «Nicht erkannt» is read again, a slice per fetch, whenever the readers change — a new version of this module or of a shop module, or a shop module added.
      * A mail a parser now reads goes back to the inbox, where its new UID lies past the cursor and the next fetch takes
      * it; a carrier's notice goes to «Verworfen». What still nobody reads stays.
      *
@@ -180,8 +188,9 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             return;
         }
 
-        $registry = Plugin::registry($this->settings);
-        $signature = Plugin::VERSION . ':' . implode(',', array_keys(array_filter($this->settings->parsers)));
+        $registry = Plugin::registry();
+        // ⚠️ *A shop module that comes, goes or changes its version changes the signature (D-1006): its mails are read again.*
+        $signature = Plugin::VERSION . ':' . $registry->signature();
         $state = get_option(self::RECHECK, []);
         $from = is_array($state) && ($state['signature'] ?? '') === $signature ? (int) ($state['uid'] ?? 0) : 0;
 
@@ -270,7 +279,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
      */
     private function backlogSlice(ImapClient $client, array $pending, int $from, int $uidValidity, ModelLookup $model, array &$proposals): int
     {
-        $fetcher = new MailFetcher(Plugin::registry($this->settings));
+        $fetcher = new MailFetcher(Plugin::registry());
         $imported = FolderPlan::onServer($this->settings->folders->imported, $client->delimiter());
         $sources = array_keys(Sources::all());
         $duties = Duties::load();
@@ -340,7 +349,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
 
         return $this->locked(function (ImapClient $client) use ($text): FetchBatch {
             $status = $client->select($this->settings->folders->inbox);
-            $fetcher = new MailFetcher(Plugin::registry($this->settings));
+            $fetcher = new MailFetcher(Plugin::registry());
             $proposals = [];
 
             foreach (array_slice($client->uidsContaining($text), 0, self::SEARCH_LIMIT) as $uid) {

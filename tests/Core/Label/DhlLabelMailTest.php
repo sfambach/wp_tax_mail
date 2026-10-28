@@ -4,7 +4,7 @@ namespace TaxMail\Tests\Core\Label;
 
 use PHPUnit\Framework\TestCase;
 use TaxMail\Core\Label\DhlLabelMail;
-use TaxMail\Core\Mail\MimeParser;
+use Taxmod\Core\Import\Mail\MimeParser;
 
 final class DhlLabelMailTest extends TestCase
 {

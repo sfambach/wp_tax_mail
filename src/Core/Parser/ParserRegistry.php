@@ -3,22 +3,20 @@
 namespace TaxMail\Core\Parser;
 
 use InvalidArgumentException;
-use TaxMail\Core\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\OrderMailParser;
 
 /**
- * All known parsers and which of them run: those the owner switched on. Which module brings a shop's orders and which
- * only its status is the modeller's duty table now (D-953), not a matter of the parsers.
+ * The mail readers the shop modules registered. A reader runs while its module is active — there is no switch of its
+ * own any more (D-1006); which module brings a shop's orders and which only its status is the modeller's duty table.
  */
 final class ParserRegistry
 {
     /** @var array<string, OrderMailParser> */
     private array $parsers = [];
 
-    /**
-     * @param iterable<OrderMailParser> $parsers
-     * @param array<string, bool> $switchedOn key => on; a parser missing here is off
-     */
-    public function __construct(iterable $parsers, private readonly array $switchedOn)
+    /** @param iterable<OrderMailParser> $parsers */
+    public function __construct(iterable $parsers)
     {
         foreach ($parsers as $parser) {
             if (isset($this->parsers[$parser->key()])) {
@@ -35,20 +33,27 @@ final class ParserRegistry
         return $this->parsers;
     }
 
-    public function isActive(string $key): bool
-    {
-        return isset($this->parsers[$key]) && ($this->switchedOn[$key] ?? false);
-    }
-
-    /** The first active parser that recognises the mail; null when none does. */
+    /** The first reader that recognises the mail; null when none does. */
     public function parserFor(MailMessage $mail): ?OrderMailParser
     {
-        foreach ($this->parsers as $key => $parser) {
-            if ($this->isActive($key) && $parser->recognises($mail)) {
+        foreach ($this->parsers as $parser) {
+            if ($parser->recognises($mail)) {
                 return $parser;
             }
         }
 
         return null;
+    }
+
+    /**
+     * What the readers are, as one string: when it changes — a module came, went or got a new version — the mails in
+     * «Nicht erkannt» are read again.
+     */
+    public function signature(): string
+    {
+        $parts = array_map(static fn (OrderMailParser $parser): string => $parser->key() . '@' . $parser->version(), $this->parsers);
+        sort($parts);
+
+        return implode(',', $parts);
     }
 }

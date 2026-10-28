@@ -2,7 +2,7 @@
 
 namespace TaxMail\Core\Label;
 
-use TaxMail\Core\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MailMessage;
 
 /**
  * DHL's «Auftragsbestätigung Ihrer Online Frankierung» for a label bought through eBay: no order, but the link to the

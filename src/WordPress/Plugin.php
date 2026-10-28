@@ -9,9 +9,8 @@ use TaxMail\Core\Imap\TlsSocketStream;
 use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Mailbox\SortRules;
-use TaxMail\Core\Parser\OrderMailParser;
+use Taxmod\Core\Import\Mail\OrderMailParser;
 use TaxMail\Core\Parser\ParserRegistry;
-use TaxMail\Core\Parser\ShippedParsers;
 use Taxmod\Core\Import\BacklogSource;
 use Taxmod\WordPress\Admin\SettingsScreen as ConfigurationScreen;
 use Taxmod\WordPress\Import\FetchInterval;
@@ -27,7 +26,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.5.3';
+    public const VERSION     = '0.6.0';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -59,7 +58,7 @@ final class Plugin
         add_action('plugins_loaded', static function () use ($plugin, $file): void {
             if (! self::modellerReady()) {
                 add_action('admin_notices', static fn () => print '<div class="notice notice-error"><p><strong>Taxmod Mail:</strong> '
-                    . esc_html__('needs the Taxonomy Modeller 0.1.49 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
+                    . esc_html__('needs the Taxonomy Modeller 0.1.81 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
 
                 return;
             }
@@ -70,7 +69,7 @@ final class Plugin
 
     public static function modellerReady(): bool
     {
-        return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class);
+        return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class) && interface_exists(OrderMailParser::class);
     }
 
     private function hook(string $file): void
@@ -97,14 +96,18 @@ final class Plugin
      * Every parser another plugin or this one announces. A mail connection is «a kind of plugin» (D-942): adding one
      * means hooking this filter, nothing in here changes.
      */
-    public static function registry(Settings $settings): ParserRegistry
+    /** The readers the shop modules register (D-1006); this module brings none of its own. */
+    public static function registry(): ParserRegistry
     {
-        $parsers = array_values(array_filter(
-            (array) apply_filters('taxmail_parsers', ShippedParsers::all()),
-            static fn (mixed $parser): bool => $parser instanceof OrderMailParser
-        ));
+        $parsers = [];
 
-        return new ParserRegistry($parsers, $settings->parsers);
+        foreach ((array) apply_filters('taxmail_parsers', []) as $parser) {
+            if ($parser instanceof OrderMailParser) {
+                $parsers[$parser->key()] ??= $parser;
+            }
+        }
+
+        return new ParserRegistry(array_values($parsers));
     }
 
     /**
@@ -142,13 +145,7 @@ final class Plugin
      */
     public function save(array $post): void
     {
-        $parsers = [];
-        $posted = isset($post['parsers']) && is_array($post['parsers']) ? $post['parsers'] : [];
         $settings = Settings::load();
-
-        foreach (array_keys(self::registry($settings)->all()) as $key) {
-            $parsers[$key] = isset($posted[$key]);
-        }
 
         $folders = isset($post['folders']) && is_array($post['folders']) ? $post['folders'] : [];
         $folder = static fn (string $key, string $fallback): string => self::folderName($folders[$key] ?? '', $fallback);
@@ -165,7 +162,7 @@ final class Plugin
             );
         }
 
-        (new Settings($parsers, new FolderPlan(
+        (new Settings(new FolderPlan(
             $folder('inbox', $defaults->inbox),
             $folder('imported', $defaults->imported),
             $folder('discarded', $defaults->discarded),

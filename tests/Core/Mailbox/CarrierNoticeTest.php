@@ -3,7 +3,7 @@
 namespace TaxMail\Tests\Core\Mailbox;
 
 use PHPUnit\Framework\TestCase;
-use TaxMail\Core\Mail\MimeParser;
+use Taxmod\Core\Import\Mail\MimeParser;
 use TaxMail\Core\Mailbox\CarrierNotice;
 
 final class CarrierNoticeTest extends TestCase
@@ -20,7 +20,7 @@ final class CarrierNoticeTest extends TestCase
         self::assertFalse(CarrierNotice::is(self::mail('Someone <x@notdhl.de>', 'Hallo')));
     }
 
-    private static function mail(string $from, string $subject): \TaxMail\Core\Mail\MailMessage
+    private static function mail(string $from, string $subject): \Taxmod\Core\Import\Mail\MailMessage
     {
         return (new MimeParser())->parse(1, "From: $from\r\nSubject: $subject\r\nContent-Type: text/plain\r\n\r\nSendungsnummer 00340435086270889742\r\n");
     }

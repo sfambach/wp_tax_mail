@@ -2,7 +2,7 @@
 
 namespace TaxMail\WordPress;
 
-use TaxMail\Core\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MailMessage;
 
 /**
  * Sample mails of a shop without a parser, written as text files under wp-content so a parser can be written from

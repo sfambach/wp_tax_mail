@@ -6,10 +6,10 @@ use PHPUnit\Framework\TestCase;
 use TaxMail\Core\Imap\ImapClient;
 use TaxMail\Core\Import\FetchOutcome;
 use TaxMail\Core\Import\MailFetcher;
-use TaxMail\Core\Mail\MailMessage;
-use TaxMail\Core\Parser\MultiOrderMailParser;
-use TaxMail\Core\Parser\OrderMailParser;
-use TaxMail\Core\Parser\ParserException;
+use Taxmod\Core\Import\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MultiOrderMailParser;
+use Taxmod\Core\Import\Mail\OrderMailParser;
+use Taxmod\Core\Import\Mail\ParserException;
 use TaxMail\Core\Parser\ParserRegistry;
 use Taxmod\Core\Import\OrderProposal;
 use Taxmod\Core\Import\ProposalKind;
@@ -32,7 +32,7 @@ final class MailFetcherTest extends TestCase
             $script .= "* 1 FETCH (UID $uid BODY[] {" . strlen($raw) . "}\r\n$raw)\r\nA" . $tag++ . " OK\r\n";
         }
 
-        $fetched = (new MailFetcher(new ParserRegistry([self::shop()], ['shop' => true])))
+        $fetched = (new MailFetcher(new ParserRegistry([self::shop()])))
             ->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
 
         self::assertSame(
@@ -53,7 +53,7 @@ final class MailFetcherTest extends TestCase
             $script .= "* 1 FETCH (UID $uid BODY[] {" . strlen($raw) . "}\r\n$raw)\r\nA" . $tag++ . " OK\r\n";
         }
 
-        $fetched = (new MailFetcher(new ParserRegistry([self::shop()], ['shop' => true])))
+        $fetched = (new MailFetcher(new ParserRegistry([self::shop()])))
             ->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
 
         self::assertSame(['2026-10-22', null], [$fetched[0]->proposal?->orderDate, $fetched[1]->proposal?->orderDate]);
@@ -65,7 +65,7 @@ final class MailFetcherTest extends TestCase
         $raw = "From: a@shop.de\nSubject: Versandt 1\nContent-Type: text/html\n\n<div itemscope><meta itemprop=\"trackingNumber\" content=\"00340435086270889742\"></div>";
         $script = "* OK\r\n* SEARCH 11\r\nA1 OK\r\n* 1 FETCH (UID 11 BODY[] {" . strlen($raw) . "}\r\n$raw)\r\nA2 OK\r\n";
 
-        $fetched = (new MailFetcher(new ParserRegistry([self::shop()], ['shop' => true])))
+        $fetched = (new MailFetcher(new ParserRegistry([self::shop()])))
             ->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
 
         self::assertSame(['00340435086270889742'], $fetched[0]->proposal?->trackingNumbers);
@@ -80,13 +80,15 @@ final class MailFetcherTest extends TestCase
             public function shopName(): string { return 'Multi'; }
             public function recognises(MailMessage $mail): bool { return true; }
             public function parse(MailMessage $mail): OrderProposal { return $this->parseAll($mail)[0]; }
+            public function kinds(): array { return [ProposalKind::Ordered]; }
+            public function version(): string { return '1'; }
             public function parseAll(MailMessage $mail): array
             {
                 return [new OrderProposal('Multi', '1', ProposalKind::Ordered), new OrderProposal('Multi', '2', ProposalKind::Ordered)];
             }
         };
 
-        $fetched = (new MailFetcher(new ParserRegistry([$multi], ['multi' => true])))->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
+        $fetched = (new MailFetcher(new ParserRegistry([$multi])))->fetch(new ImapClient(new ScriptedStream($script)), 10, 50);
 
         self::assertSame(['1', '2'], array_map(static fn (OrderProposal $order): string => $order->orderNumber, $fetched[0]->proposals));
         self::assertSame(['mail', 'mail'], array_map(static fn (OrderProposal $order): ?string => $order->source, $fetched[0]->proposals));
@@ -118,6 +120,16 @@ final class MailFetcherTest extends TestCase
                     'Newsletter'   => new OrderProposal('Shop', '', ProposalKind::NoReceipt),
                     default        => throw new ParserException('unreadable'),
                 };
+            }
+
+            public function kinds(): array
+            {
+                return [ProposalKind::Ordered];
+            }
+
+            public function version(): string
+            {
+                return '1';
             }
         };
     }

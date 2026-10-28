@@ -10,7 +10,7 @@ use Taxmod\Core\Import\SecretBox;
 use Taxmod\WordPress\Import\Vault;
 
 /**
- * The module's settings in one option: which parsers are on, the folder names, the sorting rules. How often it fetches
+ * The module's settings in one option: the folder names, the sorting rules. How often it fetches
  * is the modeller's field since D-981. The mailbox account sits in
  * an option of its own with the password sealed (his word 2026-10-20: «ja verschlüsselt einbauen»); constants in
  * wp-config.php still win, for whoever prefers to keep it out of the database entirely.
@@ -21,11 +21,7 @@ final class Settings
 
     public const ACCOUNT_OPTION = 'taxmail_mailbox';
 
-    /**
-     * @param array<string, bool> $parsers
-     */
     public function __construct(
-        public readonly array $parsers,
         public readonly FolderPlan $folders,
         public readonly SortRules $rules = new SortRules(),
     ) {
@@ -39,7 +35,6 @@ final class Settings
         $defaults = new FolderPlan();
 
         return new self(
-            array_map('boolval', is_array($stored['parsers'] ?? null) ? $stored['parsers'] : []),
             new FolderPlan(
                 (string) ($folders['inbox'] ?? $defaults->inbox),
                 (string) ($folders['imported'] ?? $defaults->imported),
@@ -56,7 +51,6 @@ final class Settings
     public function save(): void
     {
         update_option(self::OPTION, [
-            'parsers' => $this->parsers,
             'folders' => [
                 'inbox'        => $this->folders->inbox,
                 'imported'     => $this->folders->imported,

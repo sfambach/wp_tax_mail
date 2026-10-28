@@ -1,6 +1,10 @@
 <?php
 // German translation of Taxmod Mail (WordPress .l10n.php format, WP 6.5+).
 return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
+    'needs the Taxonomy Modeller 0.1.81 or later — the mail import is off until it is active.' => 'braucht den Taxonomy Modeller 0.1.81 oder neuer — der Mail-Import ist aus, bis er aktiv ist.',
+    'Choose how often to fetch under «Fetching» and Save. Activate the shop module of every shop whose mails come here (Taxmod Amazon, Taxmod eBay …).' => 'Unter «Abruf» wählen, wie oft abgerufen wird, und speichern. Für jeden Shop, dessen Mails hier ankommen, das Shop-Modul aktivieren (Taxmod Amazon, Taxmod eBay …).',
+    'None is active, so no mails are fetched. Activate a shop module such as «Taxmod Amazon».' => 'Keines ist aktiv, deshalb werden keine Mails abgerufen. Aktiviere ein Shop-Modul wie «Taxmod Amazon».',
+    'Shop modules reading this mailbox' => 'Shop-Module, die dieses Postfach lesen',
     'A password is stored encrypted. Leave empty to keep it.' => 'Ein Passwort ist verschlüsselt gespeichert. Leer lassen, um es zu behalten.',
     'Connected. %d mails in the inbox.' => 'Verbunden. %d Mails im Posteingang.',
     'Connection failed: %s' => 'Verbindung fehlgeschlagen: %s',
@@ -14,7 +18,6 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     'Last problem: %s' => 'Letztes Problem: %s',
     'Look up the IMAP server of your mail provider, with SSL on port 993 — for Strato: imap.strato.de.' => 'Den IMAP-Server deines Mail-Anbieters heraussuchen, mit SSL auf Port 993 — bei Strato: imap.strato.de.',
     'Mail' => 'Mail',
-    'Mail connections' => 'Mail-Anbindungen',
     'Mails' => 'Mails',
     'Most frequent senders in the inbox' => 'Häufigste Absender im Posteingang',
     'No parser is installed yet.' => 'Noch kein Parser installiert.',
@@ -43,8 +46,6 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     '«Count senders» counts who sent the mails in the inbox, as a help for the rules. Nothing is moved.' => '«Absender zählen» zählt, wer die Mails im Posteingang geschickt hat, als Hilfe für die Regeln. Verschoben wird nichts.',
     'Enter server, port, user (the full address) and password under «Access», then Save. The password is stored encrypted.' => 'Unter «Access» Server, Port, Benutzer (die volle Adresse) und Passwort eintragen, dann Save. Das Passwort wird verschlüsselt gespeichert.',
     'Click «Test connection» beneath them. It logs in and creates the folders «Importiert», «Verworfen» and «Nicht erkannt».' => 'Darunter «Test connection» klicken. Das meldet sich an und legt die Ordner «Importiert», «Verworfen» und «Nicht erkannt» an.',
-    'Choose how often to fetch under «Fetching», tick the shops under «Mail connections», and Save.' => 'Unter «Fetching» wählen, wie oft abgerufen wird, unter «Mail-Anbindungen» die Shops ankreuzen, dann Save.',
-    'needs the Taxonomy Modeller 0.1.49 or later — the mail import is off until it is active.' => 'braucht den Taxonomy Modeller 0.1.49 oder neuer — der Mail-Import ist aus, bis er aktiv ist.',
     'No mailbox yet — enter server, user and password, then test again.' => 'Noch kein Postfach — Server, Benutzer und Passwort eintragen, dann erneut testen.',
     'Folders created: %s.' => 'Ordner angelegt: %s.',
     '%1$d sample mails lie in wp-content/%2$s for writing a parser; the folder answers no web request.' => '%1$d Muster-Mails liegen in wp-content/%2$s, um einen Parser zu schreiben; der Ordner ist von außen nicht abrufbar.',

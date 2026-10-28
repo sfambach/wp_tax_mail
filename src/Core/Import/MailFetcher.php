@@ -3,10 +3,10 @@
 namespace TaxMail\Core\Import;
 
 use TaxMail\Core\Imap\ImapClient;
-use TaxMail\Core\Mail\MailMessage;
-use TaxMail\Core\Mail\MimeParser;
-use TaxMail\Core\Parser\MultiOrderMailParser;
-use TaxMail\Core\Parser\ParserException;
+use Taxmod\Core\Import\Mail\MailMessage;
+use Taxmod\Core\Import\Mail\MimeParser;
+use Taxmod\Core\Import\Mail\MultiOrderMailParser;
+use Taxmod\Core\Import\Mail\ParserException;
 use TaxMail\Core\Parser\ParserRegistry;
 use Taxmod\Core\Import\OrderProposal;
 use Taxmod\Core\Import\ProposalKind;
