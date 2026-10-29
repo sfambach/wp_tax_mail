@@ -74,9 +74,13 @@ final class MailFetcher
         }
 
         $outcome = $proposals[0]->kind === ProposalKind::NoReceipt ? FetchOutcome::NoReceipt : FetchOutcome::Proposed;
-        $proposals = array_map(static function (OrderProposal $proposal) use ($mail): OrderProposal {
-            // The shared format names its source and the source's own id (D-953); the parsers need not know.
-            $row = ['source' => 'mail', 'external_id' => $mail->messageId !== '' ? $mail->messageId : null] + $proposal->toArray();
+        $several = count($proposals) > 1;
+        $proposals = array_map(static function (OrderProposal $proposal) use ($mail, $several): OrderProposal {
+            // The shared format names its source and the source's own id (D-953); the parsers need not know. The inbox keeps
+            // one row per id, so the orders of one mail need one each — with the Message-ID alone only the first arrived
+            // (Amazon, 2026-10-29: «sind immer noch in der inbox und nicht verarbeitet»).
+            $id = $mail->messageId === '' ? null : ($several ? $mail->messageId . '#' . $proposal->orderNumber : $mail->messageId);
+            $row = ['source' => 'mail', 'external_id' => $id] + $proposal->toArray();
 
             // A shipping or delivery mail is dated when the parcel moved, not when he ordered. Parsers gave that date as
             // the order date, so every status mail of an order in the model proposed a wrong «ordered on» — for eBay as

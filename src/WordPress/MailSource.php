@@ -64,6 +64,9 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
     /** How far «Nicht erkannt» was read again, and for which parsers. */
     private const RECHECK = 'taxmail_recheck';
 
+    /** How many orders of each several-order mail the inbox has handled, until all are. */
+    private const BUNDLES = 'taxmail_bundles_handled';
+
     /** Mails per fetch — keeps a run inside Strato's time limits; the rest comes with the next run. */
     private const LIMIT = 60;
 
@@ -417,10 +420,31 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             return;
         }
 
-        // A mail that confirms several orders stays until the backlog finds all of them in the model; moving it with the
-        // first take would leave the others without their mail.
-        if ($folder === null || (int) ($evidence['orders_in_mail'] ?? 1) > 1) {
+        if ($folder === null) {
             return;
+        }
+
+        // A mail that confirms several orders moves once each of them is handled — to «Importiert» if any was taken;
+        // moving it with the first would leave the others without their mail.
+        $parts = (int) ($evidence['orders_in_mail'] ?? 1);
+
+        if ($parts > 1) {
+            $bundle = (string) ($evidence['bundle'] ?? '');
+            $handled = get_option(self::BUNDLES, []);
+            $handled = is_array($handled) ? $handled : [];
+            $entry = (array) ($handled[$bundle] ?? []);
+            $entry = ['count' => (int) ($entry['count'] ?? 0) + 1, 'taken' => (bool) ($entry['taken'] ?? false) || $status === InboxStatus::Imported];
+
+            if ($entry['count'] < $parts) {
+                $handled[$bundle] = $entry;
+                update_option(self::BUNDLES, $handled, false);
+
+                return;
+            }
+
+            unset($handled[$bundle]);
+            update_option(self::BUNDLES, $handled, false);
+            $folder = $entry['taken'] ? $this->settings->folders->imported : $this->settings->folders->discarded;
         }
 
         try {

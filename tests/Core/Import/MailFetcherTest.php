@@ -92,6 +92,8 @@ final class MailFetcherTest extends TestCase
 
         self::assertSame(['1', '2'], array_map(static fn (OrderProposal $order): string => $order->orderNumber, $fetched[0]->proposals));
         self::assertSame(['mail', 'mail'], array_map(static fn (OrderProposal $order): ?string => $order->source, $fetched[0]->proposals));
+        // The inbox keeps one row per id: each order of the mail needs its own.
+        self::assertSame(['<m@multi.de>#1', '<m@multi.de>#2'], array_map(static fn (OrderProposal $order): ?string => $order->externalId, $fetched[0]->proposals));
     }
 
     private static function shop(): OrderMailParser
