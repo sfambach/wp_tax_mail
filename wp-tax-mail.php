@@ -3,7 +3,7 @@
 /**
  * Plugin Name:       Taxmod Mail
  * Description:       Fetches order mails over IMAP and offers them as proposals for the Taxonomy Modeller; only picked items are written.
- * Version:           0.6.1
+ * Version:           0.6.2
  * Requires at least: 6.9
  * Requires PHP:      8.2
  * Author:            Stefan Fambach (SteFam), Claude (Anthropic AI)

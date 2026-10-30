@@ -4,6 +4,7 @@ namespace TaxMail\Tests\Core\Label;
 
 use PHPUnit\Framework\TestCase;
 use TaxMail\Core\Label\DhlLabelMail;
+use TaxMail\Core\Label\ShippingLabel;
 use Taxmod\Core\Import\Mail\MimeParser;
 
 final class DhlLabelMailTest extends TestCase
@@ -17,7 +18,23 @@ final class DhlLabelMailTest extends TestCase
             'cart'  => '7BQCFDV5F9Z8',
             'date'  => '2026-10-23T18:20:40+02:00',
             'links' => ['https://www.dhl.de/int-versenden/gw/rest/init?token=abc123&download=letter&pos=1'],
+            'printed_at' => null,
         ], $label?->toArray());
+    }
+
+    public function testAPrintedLabelGoesTwoWeeksAfterPrintingAnUnprintedOneAfterThirtyDays(): void
+    {
+        $label = new ShippingLabel('C1', '2026-10-01T10:00:00+02:00', ['https://example.test/l.pdf']);
+        $day = static fn (string $date): int => (int) strtotime($date);
+
+        self::assertFalse($label->expired($day('2026-10-30T10:00:00+02:00')));
+        self::assertTrue($label->expired($day('2026-11-01T10:00:00+02:00')));
+
+        $printed = $label->printed('2026-10-05T10:00:00+02:00');
+        self::assertFalse($printed->expired($day('2026-10-18T10:00:00+02:00')));
+        self::assertTrue($printed->expired($day('2026-10-20T10:00:00+02:00')));
+        // The first print counts; printing again does not stretch the time.
+        self::assertSame('2026-10-05T10:00:00+02:00', $printed->printed('2026-10-10T10:00:00+02:00')->printedAt);
     }
 
     public function testForwardedCopyIsALabelToo(): void

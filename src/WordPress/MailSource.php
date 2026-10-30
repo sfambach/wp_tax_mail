@@ -138,6 +138,8 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 $lastUid = max($lastUid, $result->mail->uid);
             }
 
+            ShippingLabels::purge();
+
             if ($canMove) {
                 $this->sweepLabels($client);
                 $this->recheckUnrecognised($client);
