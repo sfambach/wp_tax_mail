@@ -29,6 +29,7 @@ use Taxmod\Core\Import\ResolvingSource;
 use Taxmod\Core\Import\RestartingSource;
 use Taxmod\Core\Import\SearchingSource;
 use Taxmod\WordPress\Import\Duties;
+use Taxmod\WordPress\Import\InboxScreen;
 use Taxmod\WordPress\Import\Sources;
 
 /**
@@ -323,10 +324,20 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 ? array_values(array_filter($this->incoming($result, $uidValidity), static fn (IncomingProposal $incoming): bool => ! $known($incoming->proposal) && $couldBeNew($incoming->proposal)))
                 : [];
 
+            // ⚠️ *A parcel notice names only a tracking number and no order has it: it is no new order, so it was neither
+            // offered nor sorted and stayed in the inbox for good (2026-11-03, «inbox nicht bearbeitet»). A young one goes to
+            // the inbox, which discards it after its days (D-1065); an older one is discarded here.*
+            $notices = $result->outcome === FetchOutcome::Proposed && $result->proposals !== [] && array_filter($result->proposals, static fn (OrderProposal $proposal): bool
+                => $proposal->numberMissing && in_array($proposal->kind, [ProposalKind::Shipped, ProposalKind::Delivered], true) && ! $known($proposal)) === $result->proposals;
+
             if ($this->tookLabel($result)) {
                 $client->move($uid, $imported);
             } elseif ($result->outcome === FetchOutcome::Proposed && $result->proposals !== [] && array_filter($result->proposals, $known) === $result->proposals) {
                 $client->move($uid, $imported);
+            } elseif ($notices && self::orphaned($result->mail)) {
+                $client->move($uid, FolderPlan::onServer($this->settings->folders->discarded, $client->delimiter()));
+            } elseif ($notices) {
+                array_push($proposals, ...$this->incoming($result, $uidValidity));
             } elseif ($offered !== []) {
                 array_push($proposals, ...$offered);
             } elseif (($sorted = $this->sortTarget($result, null)) !== null) {
@@ -335,6 +346,14 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         }
 
         return $last;
+    }
+
+    /** Older than the days the modeller's inbox gives a parcel notice to find its order (D-1065; 7 before it had them). */
+    private static function orphaned(MailMessage $mail): bool
+    {
+        $days = method_exists(InboxScreen::class, 'orphanDays') ? InboxScreen::orphanDays() : 7;
+
+        return $mail->date !== null && $mail->date->getTimestamp() < time() - $days * DAY_IN_SECONDS;
     }
 
     /**

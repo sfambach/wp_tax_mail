@@ -44,6 +44,7 @@ final class AmazonOrderHistoryTest extends TestCase
             'source'         => 'amazon-export',
             'external_id'    => 'amazon-export:305-1111111-1111111',
             'number_missing' => false,
+            'invoice'        => null,
         ], $proposals[3]->toArray());
     }
 
