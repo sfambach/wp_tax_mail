@@ -70,4 +70,5 @@ return ['domain' => 'taxmail', 'language' => 'de_DE', 'messages' => [
     '%d orders read; each fetch hands the next 100 to the inbox.' => '%d Bestellungen gelesen; jeder Abruf gibt die nächsten 100 in den Posteingang.',
     'The orders could not be stored under wp-content.' => 'Die Bestellungen konnten unter wp-content nicht gespeichert werden.',
     'That is not the file: %s' => 'Das ist nicht die richtige Datei: %s',
+    'The form has expired. Please try again.' => 'Das Formular ist abgelaufen. Bitte noch einmal.',
 ]];

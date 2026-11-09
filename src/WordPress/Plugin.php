@@ -25,7 +25,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.6.5';
+    public const VERSION     = '0.6.6';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -82,11 +82,11 @@ final class Plugin
         // After the modeller's own «Import» tab.
         // The hook by name, as every module names it: through the screen's constant it compiled the 49 KB Configuration screen on every page view (D-1187).
         add_filter('taxmod_config_tabs', $plugin->registerTab(...), 20);
-        add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
-        add_action('admin_post_taxmail_samples', $plugin->handleSamples(...));
-        add_action('admin_post_taxmail_samples_delete', $plugin->handleSamplesDelete(...));
-        add_action('admin_post_taxmail_export', $plugin->handleExport(...));
-        add_action('admin_post_taxmail_export_delete', $plugin->handleExportDelete(...));
+        add_action('admin_post_taxmail_senders', self::act($plugin->handleSenders(...)));
+        add_action('admin_post_taxmail_samples', self::act($plugin->handleSamples(...)));
+        add_action('admin_post_taxmail_samples_delete', self::act($plugin->handleSamplesDelete(...)));
+        add_action('admin_post_taxmail_export', self::act($plugin->handleExport(...)));
+        add_action('admin_post_taxmail_export_delete', self::act($plugin->handleExportDelete(...)));
         add_action('admin_footer', self::exportForm(...));
         add_filter(ShippingLabels::FILTER, ShippingLabels::filter(...));
         add_action(ShippingLabels::PRINTED_ACTION, ShippingLabels::printed(...));
@@ -196,7 +196,7 @@ final class Plugin
         $sender = isset($_GET['sender']) ? sanitize_text_field(wp_unslash((string) $_GET['sender'])) : '';
 
         if (preg_match('/^[A-Za-z0-9@._+-]{3,}$/', $sender) !== 1) {
-            wp_die(esc_html__('That is no sender address.', 'taxmail'), 400);
+            self::refuse(__('That is no sender address.', 'taxmail'));
         }
 
         try {
@@ -330,20 +330,60 @@ final class Plugin
         update_option(self::INTERVAL_MOVED, self::VERSION, false);
     }
 
-    /** CD-5, in this order: capability, then nonce. */
+    /** CD-5, in this order: capability, then nonce; a refusal is a message on the tab (D-1254). */
     private function guard(string $action): void
     {
         if (! current_user_can(self::CAPABILITY)) {
-            wp_die(esc_html__('You may not change the mail import.', 'taxmail'), 403);
+            self::refuse(__('You may not change the mail import.', 'taxmail'));
         }
 
-        check_admin_referer($action);
+        if (method_exists(\Taxmod\WordPress\Admin\ListPage::class, 'nonce')) {
+            \Taxmod\WordPress\Admin\ListPage::nonce($action);
+        } elseif (! wp_verify_nonce(sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'] ?? '')), $action)) {
+            self::refuse(__('The form has expired. Please try again.', 'taxmail'));
+        }
+    }
+
+    private static function tabUrl(): string
+    {
+        return admin_url('admin.php?page=taxmod-settings&tab=' . self::TAB);
+    }
+
+    /**
+     * The handler as an act (D-1254): an exception becomes a message in the tab's message field with the way back, never an
+     * empty page. ListPage is named only here, inside the handler, so the boot does not compile it (D-1244).
+     */
+    private static function act(\Closure $handler): \Closure
+    {
+        return static function () use ($handler): void {
+            if (! method_exists(\Taxmod\WordPress\Admin\ListPage::class, 'act')) {
+                $handler();
+
+                return;
+            }
+
+            \Taxmod\WordPress\Admin\ListPage::act(static function () use ($handler): string {
+                $handler();
+
+                return '';
+            }, self::tabUrl());
+        };
+    }
+
+    /** A refusal as a message on the tab instead of a bare error page (D-1254). */
+    private static function refuse(string $message): never
+    {
+        if (method_exists(\Taxmod\WordPress\Admin\ListPage::class, 'fail')) {
+            \Taxmod\WordPress\Admin\ListPage::fail($message, self::tabUrl());
+        }
+
+        wp_die(esc_html($message), '', ['response' => 403, 'back_link' => true]);
     }
 
     /** Back to the «Mail» tab of the Configuration page. */
     private function back(): never
     {
-        wp_safe_redirect(admin_url('admin.php?page=taxmod-settings&tab=' . self::TAB));
+        wp_safe_redirect(self::tabUrl());
         exit;
     }
 
