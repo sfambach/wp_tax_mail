@@ -45,6 +45,10 @@ final class AmazonOrderHistoryTest extends TestCase
             'external_id'    => 'amazon-export:305-1111111-1111111',
             'number_missing' => false,
             'invoice'        => null,
+            // Since modeller 0.1.143 (D-1131) a proposal carries these; an order history knows none of them.
+            'expected_delivery' => null,
+            'delivery_window'   => null,
+            'shipper'           => null,
         ], $proposals[3]->toArray());
     }
 
