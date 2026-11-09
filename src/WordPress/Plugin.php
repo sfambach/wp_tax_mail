@@ -12,7 +12,6 @@ use TaxMail\Core\Mailbox\SortRules;
 use Taxmod\Core\Import\Mail\OrderMailParser;
 use TaxMail\Core\Parser\ParserRegistry;
 use Taxmod\Core\Import\BacklogSource;
-use Taxmod\WordPress\Admin\SettingsScreen as ConfigurationScreen;
 use Taxmod\WordPress\Import\FetchInterval;
 use Taxmod\WordPress\Import\InboxScreen;
 use Taxmod\WordPress\Import\Sources;
@@ -26,7 +25,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.6.3';
+    public const VERSION     = '0.6.4';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -81,7 +80,8 @@ final class Plugin
         add_action('admin_init', self::moveIntervalOnce(...));
         add_filter(Sources::FILTER, static fn (array $sources): array => [...$sources, new MailSource(Settings::load())]);
         // After the modeller's own «Import» tab.
-        add_filter(ConfigurationScreen::TABS_FILTER, $plugin->registerTab(...), 20);
+        // The hook by name, as every module names it: through the screen's constant it compiled the 49 KB Configuration screen on every page view (D-1187).
+        add_filter('taxmod_config_tabs', $plugin->registerTab(...), 20);
         add_action('admin_post_taxmail_senders', $plugin->handleSenders(...));
         add_action('admin_post_taxmail_samples', $plugin->handleSamples(...));
         add_action('admin_post_taxmail_samples_delete', $plugin->handleSamplesDelete(...));
