@@ -2,6 +2,8 @@
 
 namespace TaxMail\WordPress;
 
+use Taxmod\WordPress\Admin\ListPage;
+
 /**
  * The «Mail» tab on the modeller's Configuration page (D-945). The page draws one order for every module (D-981): the
  * mailbox fields from account() under «Access» with Save, «Test connection» and «Delete access data», then the fetch
@@ -129,7 +131,8 @@ final class SettingsScreen
                 . ' ' . self::actionLink('taxmail_export_delete', __('Forget the upload', 'taxmail')) . '</p>';
         }
 
-        return $html . '<table class="form-table" role="presentation">'
+        return $html . ListPage::toolbar(['<button type="submit" class="button button-secondary" form="' . esc_attr(Plugin::EXPORT_FORM) . '">' . esc_html__('Read the file', 'taxmail') . '</button>'])
+            . '<table class="form-table" role="presentation">'
             . '<tr><th scope="row"><label for="taxmail-export-file">' . esc_html__('File', 'taxmail') . '</label></th>'
             . '<td><input type="file" id="taxmail-export-file" name="export" accept=".csv,text/csv" form="' . esc_attr(Plugin::EXPORT_FORM) . '"></td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-scope">' . esc_html__('Which orders', 'taxmail') . '</label></th>'
@@ -138,8 +141,7 @@ final class SettingsScreen
             . '<option value="all">' . esc_html__('All', 'taxmail') . '</option></select></td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-since">' . esc_html__('Ordered from', 'taxmail') . '</label></th>'
             . '<td><input type="date" id="taxmail-export-since" name="since" form="' . esc_attr(Plugin::EXPORT_FORM) . '"> '
-            . '<span class="description">' . esc_html__('Empty: every year.', 'taxmail') . '</span></td></tr></table>'
-            . '<p><button type="submit" class="button button-secondary" form="' . esc_attr(Plugin::EXPORT_FORM) . '">' . esc_html__('Read the file', 'taxmail') . '</button></p>';
+            . '<span class="description">' . esc_html__('Empty: every year.', 'taxmail') . '</span></td></tr></table>';
     }
 
     /** The mailbox fields; the page draws them under «Access», with its buttons beneath (D-981). */
