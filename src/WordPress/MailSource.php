@@ -238,6 +238,8 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         return array_map(static fn (OrderProposal $proposal): IncomingProposal => new IncomingProposal($proposal, [
             /* translators: 1: platform, 2: order date */
             'origin' => sprintf(__('From the %1$s order export, ordered %2$s.', 'taxmail'), $proposal->platform, $proposal->orderDate ?? '?'),
+            // Read from an archive: the day it is filed is no date of the order (D-1350).
+            'archive' => true,
         ]), ExportQueue::take());
     }
 

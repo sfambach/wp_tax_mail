@@ -12,7 +12,9 @@ use Taxmod\Core\Import\ProposalLine;
  * order. A row is one item of one shipment; its «Total Amount» is the item's gross price times the quantity plus the
  * row's shipping charge, so the order total is their sum. Addresses and payment columns are not read. A cancelled
  * order is left out. A closed one counts as shipped, not delivered: Amazon writes no delivery date, and the inbox
- * would write the day it is taken as «received» (the WE thread, 2026-10-28: «kein erfundenes Eingegangen am»).
+ * would write the day it is taken as «received» (the WE thread, 2026-10-28: «kein erfundenes Eingegangen am»). Since
+ * D-1350 the export queue marks its orders as read from an archive, so a status without a date of its own stays undated
+ * in the inbox either way.
  *
  * @see docs/pakete/mail/konzept.md (modeller)
  */
