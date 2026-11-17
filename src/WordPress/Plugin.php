@@ -26,7 +26,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.6.8';
+    public const VERSION     = '0.6.9';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -58,7 +58,7 @@ final class Plugin
         add_action('plugins_loaded', static function () use ($plugin, $file): void {
             if (! self::modellerReady()) {
                 add_action('admin_notices', static fn () => print '<div class="notice notice-error"><p><strong>Taxmod Mail:</strong> '
-                    . esc_html__('needs the Taxonomy Modeller 0.1.81 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
+                    . esc_html__('needs the Taxonomy Modeller 0.2.123 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
 
                 return;
             }
@@ -69,7 +69,7 @@ final class Plugin
 
     public static function modellerReady(): bool
     {
-        return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class) && interface_exists(OrderMailParser::class);
+        return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class) && interface_exists(OrderMailParser::class) && method_exists(ListPage::class, 'acting');
     }
 
     private function hook(string $file): void
