@@ -338,11 +338,7 @@ final class Plugin
             self::refuse(__('You may not change the mail import.', 'taxmail'));
         }
 
-        if (method_exists(ListPage::class, 'nonce')) {
-            ListPage::nonce($action);
-        } elseif (! wp_verify_nonce(sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'] ?? '')), $action)) {
-            self::refuse(__('The form has expired. Please try again.', 'taxmail'));
-        }
+        ListPage::nonce($action);
     }
 
     private static function tabUrl(): string
