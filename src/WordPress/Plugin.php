@@ -69,7 +69,9 @@ final class Plugin
 
     public static function modellerReady(): bool
     {
-        return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class) && interface_exists(OrderMailParser::class) && method_exists(ListPage::class, 'acting');
+        return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class) && interface_exists(OrderMailParser::class)
+            // By version, not method_exists(): that compiled the 67 KB list page on every page view (D-1187; review 2026-11-17, Befund 6).
+            && version_compare(\Taxmod\WordPress\Plugin::VERSION, '0.2.123', '>=');
     }
 
     private function hook(string $file): void
@@ -83,11 +85,14 @@ final class Plugin
         // After the modeller's own «Import» tab.
         // The hook by name, as every module names it: through the screen's constant it compiled the 49 KB Configuration screen on every page view (D-1187).
         add_filter('taxmod_config_tabs', $plugin->registerTab(...), 20);
-        add_action('admin_post_taxmail_senders', ListPage::acting($plugin->handleSenders(...), self::tabUrl()));
-        add_action('admin_post_taxmail_samples', ListPage::acting($plugin->handleSamples(...), self::tabUrl()));
-        add_action('admin_post_taxmail_samples_delete', ListPage::acting($plugin->handleSamplesDelete(...), self::tabUrl()));
-        add_action('admin_post_taxmail_export', ListPage::acting($plugin->handleExport(...), self::tabUrl()));
-        add_action('admin_post_taxmail_export_delete', ListPage::acting($plugin->handleExportDelete(...), self::tabUrl()));
+        // Only where a handler can run (D-1187): ListPage::acting() compiles the list page.
+        if (\Taxmod\WordPress\Plugin::handlesAdminActions()) {
+            add_action('admin_post_taxmail_senders', ListPage::acting($plugin->handleSenders(...), self::tabUrl()));
+            add_action('admin_post_taxmail_samples', ListPage::acting($plugin->handleSamples(...), self::tabUrl()));
+            add_action('admin_post_taxmail_samples_delete', ListPage::acting($plugin->handleSamplesDelete(...), self::tabUrl()));
+            add_action('admin_post_taxmail_export', ListPage::acting($plugin->handleExport(...), self::tabUrl()));
+            add_action('admin_post_taxmail_export_delete', ListPage::acting($plugin->handleExportDelete(...), self::tabUrl()));
+        }
         add_action('admin_footer', self::exportForm(...));
         add_filter(ShippingLabels::FILTER, ShippingLabels::filter(...));
         add_action(ShippingLabels::PRINTED_ACTION, ShippingLabels::printed(...));
