@@ -26,7 +26,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.6.12';
+    public const VERSION     = '0.6.13';
     public const TEXT_DOMAIN = 'taxmail';
     public const CAPABILITY  = 'manage_options';
     public const TAB         = 'mail';
@@ -58,7 +58,7 @@ final class Plugin
         add_action('plugins_loaded', static function () use ($plugin, $file): void {
             if (! self::modellerReady()) {
                 add_action('admin_notices', static fn () => print '<div class="notice notice-error"><p><strong>Taxmod Mail:</strong> '
-                    . esc_html__('needs the Taxonomy Modeller 0.2.173 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
+                    . esc_html__('needs the Taxonomy Modeller 0.2.174 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
 
                 return;
             }
@@ -70,8 +70,8 @@ final class Plugin
     public static function modellerReady(): bool
     {
         return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class) && interface_exists(OrderMailParser::class)
-            // By version, not method_exists(): that compiled the 67 KB list page on every page view (D-1187; review 2026-11-17, Befund 6); 0.2.173 brings ListPage::button (D-1500).
-            && version_compare(\Taxmod\WordPress\Plugin::VERSION, '0.2.173', '>=');
+            // By version, not method_exists(): that compiled the 67 KB list page on every page view (D-1187; review 2026-11-17, Befund 6); 0.2.174 brings ListPage::button (D-1500).
+            && version_compare(\Taxmod\WordPress\Plugin::VERSION, '0.2.174', '>=');
     }
 
     private function hook(string $file): void
