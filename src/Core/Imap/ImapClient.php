@@ -123,6 +123,16 @@ final class ImapClient
         return $this->uidsWhere('FROM ' . self::quote($sender));
     }
 
+    /**
+     * UIDs of the mails in the selected folder whose «Subject» contains $text, oldest first.
+     *
+     * @return list<int>
+     */
+    public function uidsWithSubject(string $text): array
+    {
+        return $this->uidsWhere('SUBJECT ' . self::quote($text));
+    }
+
     /** @return list<int> */
     private function uidsWhere(string $criterion): array
     {

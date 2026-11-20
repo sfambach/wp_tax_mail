@@ -44,6 +44,14 @@ final class ImapClientTest extends TestCase
         self::assertSame('A1 UID SEARCH FROM "amazon.de"', $stream->written[0]);
     }
 
+    public function testUidsWithSubjectSearchesTheSubject(): void
+    {
+        $stream = new ScriptedStream("* OK\r\n* SEARCH 12 3\r\nA1 OK\r\n");
+
+        self::assertSame([3, 12], (new ImapClient($stream))->uidsWithSubject('Packstation'));
+        self::assertSame('A1 UID SEARCH SUBJECT "Packstation"', $stream->written[0]);
+    }
+
     public function testSelectReadsCountAndUidValidity(): void
     {
         $stream = new ScriptedStream("* OK\r\n* 12 EXISTS\r\n* OK [UIDVALIDITY 3857529045] UIDs valid\r\n* OK [UIDNEXT 4392] next\r\nA1 OK [READ-WRITE] done\r\n");

@@ -34,6 +34,13 @@ final class PickupNoticeTest extends TestCase
         self::assertFalse(PickupNotice::is((new MimeParser())->parse(1, "From: x@amazon.de\r\nSubject: Bestellt: Kabel\r\nContent-Type: text/plain\r\n\r\nPackstation 123\r\n")));
     }
 
+    public function testSearchTermsCoverBothSpellings(): void
+    {
+        self::assertContains('packstation', PickupNotice::searchTerms());
+        self::assertContains('paket shop', PickupNotice::searchTerms());
+        self::assertContains('paketshop', PickupNotice::searchTerms());
+    }
+
     private static function mail(string $subject): MailMessage
     {
         return (new MimeParser())->parse(1, "From: DHL <zustellung@dhl.de>\r\nSubject: $subject\r\nContent-Type: text/plain\r\n\r\nSendungsnummer 00340435086270889742\r\n");
