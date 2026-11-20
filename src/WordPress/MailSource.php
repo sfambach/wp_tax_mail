@@ -12,6 +12,7 @@ use TaxMail\Core\Label\DhlLabelMail;
 use Taxmod\Core\Import\Mail\MailMessage;
 use Taxmod\Core\Import\Mail\MimeParser;
 use TaxMail\Core\Mailbox\CarrierNotice;
+use TaxMail\Core\Mailbox\PickupNotice;
 use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Mailbox\SenderTally;
@@ -219,7 +220,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             if ($result->outcome === FetchOutcome::Proposed || $result->outcome === FetchOutcome::NoReceipt) {
                 $client->move($uid, $inbox);
             } elseif ($result->outcome === FetchOutcome::Unrecognised && CarrierNotice::is($result->mail)) {
-                $client->move($uid, $discarded);
+                $client->move($uid, PickupNotice::is($result->mail) ? $inbox : $discarded);
             }
 
             $from = $uid;
@@ -616,6 +617,11 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
 
         if ($ruled !== null) {
             return SortRules::resolve($ruled, $this->settings->folders);
+        }
+
+        // A parcel waiting in a Packstation or a branch still needs him: it stays in the inbox (2026-11-20).
+        if (PickupNotice::is($result->mail)) {
+            return null;
         }
 
         if ($result->outcome === FetchOutcome::NoReceipt || ($proposal !== null && $proposal->kind === ProposalKind::Sold)
