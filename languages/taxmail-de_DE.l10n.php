@@ -73,7 +73,7 @@ return [
         'another mail run is busy'                                                       => 'ein anderer Mail-Lauf ist gerade aktiv',
         'enter an order number of at least 4 characters'                                 => 'bitte eine Bestellnummer mit mindestens 4 Zeichen eingeben',
         'needs the Taxonomy Modeller 0.1.81 or later — the mail import is off until it is active.' => 'braucht den Taxonomy Modeller 0.1.81 oder neuer — der Mail-Import ist aus, bis er aktiv ist.',
-        'needs the Taxonomy Modeller 0.2.172 or later — the mail import is off until it is active.' => 'braucht den Taxonomy Modeller ab 0.2.172 — der Mail-Import ist aus, bis er aktiv ist.',
+        'needs the Taxonomy Modeller 0.2.174 or later — the mail import is off until it is active.' => 'braucht den Taxonomy Modeller ab 0.2.174 — der Mail-Import ist aus, bis er aktiv ist.',
         'no mailbox configured'                                                          => 'kein Postfach eingerichtet',
         'run "composer install" in the plugin folder — the autoloader is missing.'       => 'im Plugin-Ordner «composer install» ausführen — der Autoloader fehlt.',
         'the last backlog slice stopped on this mail; it stays in the inbox'             => 'der letzte Altbestand-Durchgang ist an dieser Mail stehen geblieben; sie bleibt im Posteingang',

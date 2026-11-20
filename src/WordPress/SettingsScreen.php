@@ -2,7 +2,9 @@
 
 namespace TaxMail\WordPress;
 
+use Taxmod\Core\Description\InputKind;
 use Taxmod\WordPress\Admin\ListPage;
+use Taxmod\WordPress\Draw\SelectMarkup;
 
 /**
  * The «Mail» tab on the modeller's Configuration page (D-945). The page draws one order for every module (D-981): the
@@ -51,7 +53,7 @@ final class SettingsScreen
             'unrecognised' => [__('Not recognised', 'taxmail'), $settings->folders->unrecognised],
         ] as $key => [$label, $value]) {
             $html .= '<tr><th scope="row"><label for="taxmail-folder-' . esc_attr($key) . '">' . esc_html($label) . '</label></th>'
-                . '<td><input type="text" class="regular-text" id="taxmail-folder-' . esc_attr($key) . '" name="folders[' . esc_attr($key) . ']" value="' . esc_attr($value) . '"></td></tr>';
+                . '<td>' . ListPage::field(InputKind::Line, 'folders[' . $key . ']', $value, ['id' => 'taxmail-folder-' . $key, 'size' => 40]) . '</td></tr>';
         }
 
         return $html . '</table>';
@@ -63,8 +65,7 @@ final class SettingsScreen
         $html = '<h2>' . esc_html__('Sorting rules', 'taxmail') . '</h2><p>'
             . esc_html__('One rule per line: sender | subject | folder. Sender and subject are pieces of text, one of them may stay empty. «Verworfen» and «Nicht erkannt» mean the folders below; any other name is a folder of your own, created when needed. Rules only sort mails that are no order; shop mails without an order (advertising, your own sales) go to «Verworfen» anyway. Nothing is ever deleted.', 'taxmail')
             . '</p><p><label for="taxmail-rules" class="screen-reader-text">' . esc_html__('Sorting rules', 'taxmail') . '</label>'
-            . '<textarea id="taxmail-rules" name="rules" rows="8" class="large-text code" placeholder="newsletter@shop.example | | Verworfen&#10;| Ihr Paket | Taxmod/Versand">'
-            . esc_textarea($settings->rules->toText()) . '</textarea></p>';
+            . ListPage::field(InputKind::LongText, 'rules', $settings->rules->toText(), ['id' => 'taxmail-rules', 'rows' => 8, 'columns' => 80, 'placeholder' => "newsletter@shop.example | | Verworfen\n| Ihr Paket | Taxmod/Versand"]) . '</p>';
 
         $html .= '<p>' . esc_html__('«Count senders» counts who sent the mails in the inbox, as a help for the rules. Nothing is moved.', 'taxmail')
             . ' ' . self::actionLink('taxmail_senders', __('Count senders', 'taxmail')) . '</p>';
@@ -134,13 +135,11 @@ final class SettingsScreen
         // D-1500: the Configuration page has one toolbar (Save); this section's own act stands beneath its fields, like a form's.
         return $html . '<table class="form-table" role="presentation">'
             . '<tr><th scope="row"><label for="taxmail-export-file">' . esc_html__('File', 'taxmail') . '</label></th>'
-            . '<td><input type="file" id="taxmail-export-file" name="export" accept=".csv,text/csv" form="' . esc_attr(Plugin::EXPORT_FORM) . '"></td></tr>'
+            . '<td>' . ListPage::field(InputKind::Upload, 'export', '', ['id' => 'taxmail-export-file', 'form' => Plugin::EXPORT_FORM, 'note' => '.csv,text/csv']) . '</td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-scope">' . esc_html__('Which orders', 'taxmail') . '</label></th>'
-            . '<td><select id="taxmail-export-scope" name="scope" form="' . esc_attr(Plugin::EXPORT_FORM) . '">'
-            . '<option value="technical">' . esc_html__('Only technical (by department and product name: electronics, cables, tools …)', 'taxmail') . '</option>'
-            . '<option value="all">' . esc_html__('All', 'taxmail') . '</option></select></td></tr>'
+            . '<td>' . SelectMarkup::of('scope', ['technical' => __('Only technical (by department and product name: electronics, cables, tools …)', 'taxmail'), 'all' => __('All', 'taxmail')], 'technical', false, Plugin::EXPORT_FORM, ['id' => 'taxmail-export-scope']) . '</td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-since">' . esc_html__('Ordered from', 'taxmail') . '</label></th>'
-            . '<td><input type="date" id="taxmail-export-since" name="since" form="' . esc_attr(Plugin::EXPORT_FORM) . '"> '
+            . '<td>' . ListPage::field(InputKind::Moment, 'since', '', ['id' => 'taxmail-export-since', 'form' => Plugin::EXPORT_FORM, 'note' => 'date']) . ' '
             . '<span class="description">' . esc_html__('Empty: every year.', 'taxmail') . '</span></td></tr></table>'
             . '<p>' . ListPage::button(__('Read the file', 'taxmail'), '', false, '', '', Plugin::EXPORT_FORM) . '</p>';
     }
@@ -167,11 +166,11 @@ final class SettingsScreen
             'user' => [__('User', 'taxmail'), 'text', $account['user'], 'einkauf@example.com'],
         ] as $key => [$label, $type, $value, $placeholder]) {
             $html .= '<tr><th scope="row"><label for="taxmail-account-' . esc_attr($key) . '">' . esc_html($label) . '</label></th>'
-                . '<td><input type="' . esc_attr($type) . '" class="regular-text" id="taxmail-account-' . esc_attr($key) . '" name="account[' . esc_attr($key) . ']" value="' . esc_attr($value) . '" placeholder="' . esc_attr($placeholder) . '" autocomplete="off"></td></tr>';
+                . '<td>' . ListPage::field($type === 'number' ? InputKind::Number : InputKind::Line, 'account[' . $key . ']', $value, ['id' => 'taxmail-account-' . $key, 'size' => 40, 'placeholder' => $placeholder]) . '</td></tr>';
         }
 
         $html .= '<tr><th scope="row"><label for="taxmail-account-password">' . esc_html__('Password', 'taxmail') . '</label></th>'
-            . '<td><input type="password" class="regular-text" id="taxmail-account-password" name="account[password]" value="" autocomplete="new-password">'
+            . '<td>' . ListPage::field(InputKind::Secret, 'account[password]', '', ['id' => 'taxmail-account-password', 'size' => 40])
             . '<p class="description">' . esc_html($passwordNote) . '</p></td></tr></table>';
 
         return $html;
