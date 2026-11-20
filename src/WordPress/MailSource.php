@@ -131,7 +131,15 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             foreach ((new MailFetcher($registry))->fetch($client, $lastUid, self::LIMIT) as $result) {
                 $target = $this->tookLabel($result) ? $this->settings->folders->imported : $this->sortTarget($result, $this->outcomeFolder($result->outcome));
 
-                if ($target === null && $result->outcome === FetchOutcome::Proposed && $result->proposal !== null) {
+                if ($target === null && self::trackingOnly($result)) {
+                    // ⚠️ *He reads none of them and they piled up in the inbox (2026-11-20): the status goes to the order,
+                    // the mail to «Verworfen» at once.*
+                    array_push($proposals, ...$this->incoming($result, $status->uidValidity, true));
+
+                    if ($canMove) {
+                        $client->move($result->mail->uid, FolderPlan::onServer($this->settings->folders->discarded, $client->delimiter()));
+                    }
+                } elseif ($target === null && $result->outcome === FetchOutcome::Proposed && $result->proposal !== null) {
                     array_push($proposals, ...$this->incoming($result, $status->uidValidity));
                 } elseif ($target !== null && $canMove) {
                     $client->move($result->mail->uid, FolderPlan::onServer($target, $client->delimiter()));
@@ -330,17 +338,19 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             // ⚠️ *A parcel notice names only a tracking number and no order has it: it is no new order, so it was neither
             // offered nor sorted and stayed in the inbox for good (2026-11-03, «inbox nicht bearbeitet»). A young one goes to
             // the inbox, which discards it after its days (D-1065); an older one is discarded here.*
-            $notices = $result->outcome === FetchOutcome::Proposed && $result->proposals !== [] && array_filter($result->proposals, static fn (OrderProposal $proposal): bool
-                => $proposal->numberMissing && in_array($proposal->kind, [ProposalKind::Shipped, ProposalKind::Delivered], true) && ! $known($proposal)) === $result->proposals;
+            $notices = self::trackingOnly($result);
 
             if ($this->tookLabel($result)) {
                 $client->move($uid, $imported);
             } elseif ($result->outcome === FetchOutcome::Proposed && $result->proposals !== [] && array_filter($result->proposals, $known) === $result->proposals) {
                 $client->move($uid, $imported);
-            } elseif ($notices && self::orphaned($result->mail)) {
-                $client->move($uid, FolderPlan::onServer($this->settings->folders->discarded, $client->delimiter()));
             } elseif ($notices) {
-                array_push($proposals, ...$this->incoming($result, $uidValidity));
+                // A young one still gives its status to the order; the mail is discarded either way (2026-11-20).
+                if (! self::orphaned($result->mail)) {
+                    array_push($proposals, ...array_values(array_filter($this->incoming($result, $uidValidity, true), static fn (IncomingProposal $incoming): bool => ! $known($incoming->proposal))));
+                }
+
+                $client->move($uid, FolderPlan::onServer($this->settings->folders->discarded, $client->delimiter()));
             } elseif ($offered !== []) {
                 array_push($proposals, ...$offered);
             } elseif (($sorted = $this->sortTarget($result, null)) !== null) {
@@ -349,6 +359,19 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         }
 
         return $last;
+    }
+
+    /**
+     * A parcel notice and nothing else: every proposal names only a tracking number and a shipping or delivery status.
+     * A parcel waiting for pickup is not one — he has to act on it.
+     */
+    private static function trackingOnly(FetchedMail $result): bool
+    {
+        $proposals = $result->proposals !== [] ? $result->proposals : array_filter([$result->proposal]);
+
+        return $result->outcome === FetchOutcome::Proposed && $proposals !== [] && ! PickupNotice::is($result->mail)
+            && array_filter($proposals, static fn (OrderProposal $proposal): bool
+                => $proposal->numberMissing && in_array($proposal->kind, [ProposalKind::Shipped, ProposalKind::Delivered], true)) === $proposals;
     }
 
     /** Older than the days the modeller's inbox gives a parcel notice to find its order (D-1065; 7 before it had them). */
@@ -439,8 +462,8 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             InboxStatus::Open      => null,
         };
 
-        // An order from an uploaded export has no mail to move.
-        if (! isset($evidence['uid']) && ! isset($evidence['message_id'])) {
+        // An order from an uploaded export has no mail to move; a parcel notice's mail was filed when it was fetched.
+        if ((! isset($evidence['uid']) && ! isset($evidence['message_id'])) || ! empty($evidence['filed'])) {
             return;
         }
 
@@ -565,7 +588,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
      *
      * @return list<IncomingProposal>
      */
-    private function incoming(FetchedMail $result, int $uidValidity): array
+    private function incoming(FetchedMail $result, int $uidValidity, bool $filed = false): array
     {
         $mail = $result->mail;
         $received = $mail->date?->setTimezone(wp_timezone());
@@ -582,7 +605,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             'parser'         => $result->parserKey,
             /* translators: 1: platform, 2: mail subject, 3: date of the mail */
             'origin'         => sprintf(__('From %1$s mail «%2$s» of %3$s.', 'taxmail'), $proposal->platform, $mail->subject, $received?->format('Y-m-d') ?? '?'),
-        ] + ($count > 1 ? ['bundle' => 'mail:' . ($mail->messageId !== '' ? $mail->messageId : $mail->uid), 'orders_in_mail' => $count] : [])), $proposals));
+        ] + ($filed ? ['filed' => true] : []) + ($count > 1 ? ['bundle' => 'mail:' . ($mail->messageId !== '' ? $mail->messageId : $mail->uid), 'orders_in_mail' => $count] : [])), $proposals));
     }
 
     /** A DHL label mail is kept for the eBay module and counts as handled (moved to «Importiert»). */
