@@ -8,16 +8,25 @@ use Taxmod\Core\Import\SecretBox;
 use Taxmod\WordPress\Import\Vault;
 
 /**
- * The DHL labels read from mails, handed to the eBay module through the filter `taxmail_dhl_labels`; the eBay module
- * says when one is printed through the action `taxmail_dhl_label_printed` (cart number). A label goes two weeks after
+ * The postage labels read from mails (D-1511: every carrier's), handed to the eBay and shipping modules through the filter
+ * `taxmail_shipping_labels` (the older `taxmail_dhl_labels` answers the same); a module says when one is printed through the action
+ * `taxmail_shipping_label_printed` or the older `taxmail_dhl_label_printed` (cart number). The PDF behind a stored link is
+ * fetched through `taxmail_shipping_label_pdf`, for stored links only. A label goes two weeks after
  * printing, or 30 days after the mail if nobody printed it (ShippingLabel). A label link opens the PDF without a login,
  * so the list is stored sealed like a password (his rule 2026-10-21: «keys und passwörter immer verschlüsselt speichern»).
  */
 final class ShippingLabels
 {
-    public const FILTER = 'taxmail_dhl_labels';
+    public const FILTER = 'taxmail_shipping_labels';
 
-    public const PRINTED_ACTION = 'taxmail_dhl_label_printed';
+    /** Before D-1511; kept so a module not yet moved keeps its labels. */
+    public const DHL_FILTER = 'taxmail_dhl_labels';
+
+    public const PRINTED_ACTION = 'taxmail_shipping_label_printed';
+
+    public const DHL_PRINTED_ACTION = 'taxmail_dhl_label_printed';
+
+    public const PDF_FILTER = 'taxmail_shipping_label_pdf';
 
     private const OPTION = 'taxmail_dhl_labels';
 
@@ -86,6 +95,29 @@ final class ShippingLabels
     public static function filter(mixed $labels): array
     {
         return [...(is_array($labels) ? array_values($labels) : []), ...self::recent()];
+    }
+
+    /**
+     * The PDF behind a link of a stored label, or null — never a link nobody stored, so this fetches nothing else.
+     *
+     * @param mixed $pdf what an earlier filter answered; `mixed`: a filter carries anything
+     */
+    public static function pdf(mixed $pdf, mixed $link = ''): ?string
+    {
+        if (is_string($pdf) && $pdf !== '') {
+            return $pdf;
+        }
+
+        $stored = array_merge([], ...array_column(self::recent(), 'links'));
+
+        if (! is_string($link) || ! in_array($link, $stored, true)) {
+            return null;
+        }
+
+        $response = wp_remote_get($link, ['timeout' => 20, 'redirection' => 0]);
+        $body = is_wp_error($response) ? '' : wp_remote_retrieve_body($response);
+
+        return wp_remote_retrieve_response_code($response) === 200 && str_starts_with($body, '%PDF') ? $body : null;
     }
 
     /** @return list<ShippingLabel> */
