@@ -131,8 +131,8 @@ final class SettingsScreen
                 . ' ' . self::actionLink('taxmail_export_delete', __('Forget the upload', 'taxmail')) . '</p>';
         }
 
-        return $html . ListPage::toolbar(['<button type="submit" class="button button-secondary" form="' . esc_attr(Plugin::EXPORT_FORM) . '">' . esc_html__('Read the file', 'taxmail') . '</button>'])
-            . '<table class="form-table" role="presentation">'
+        // D-1500: the Configuration page has one toolbar (Save); this section's own act stands beneath its fields, like a form's.
+        return $html . '<table class="form-table" role="presentation">'
             . '<tr><th scope="row"><label for="taxmail-export-file">' . esc_html__('File', 'taxmail') . '</label></th>'
             . '<td><input type="file" id="taxmail-export-file" name="export" accept=".csv,text/csv" form="' . esc_attr(Plugin::EXPORT_FORM) . '"></td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-scope">' . esc_html__('Which orders', 'taxmail') . '</label></th>'
@@ -141,7 +141,8 @@ final class SettingsScreen
             . '<option value="all">' . esc_html__('All', 'taxmail') . '</option></select></td></tr>'
             . '<tr><th scope="row"><label for="taxmail-export-since">' . esc_html__('Ordered from', 'taxmail') . '</label></th>'
             . '<td><input type="date" id="taxmail-export-since" name="since" form="' . esc_attr(Plugin::EXPORT_FORM) . '"> '
-            . '<span class="description">' . esc_html__('Empty: every year.', 'taxmail') . '</span></td></tr></table>';
+            . '<span class="description">' . esc_html__('Empty: every year.', 'taxmail') . '</span></td></tr></table>'
+            . '<p>' . ListPage::button(__('Read the file', 'taxmail'), '', false, '', '', Plugin::EXPORT_FORM) . '</p>';
     }
 
     /** The mailbox fields; the page draws them under «Access», with its buttons beneath (D-981). */
@@ -199,7 +200,6 @@ final class SettingsScreen
     /** @param array<string, string> $args */
     private static function actionLink(string $action, string $label, array $args = []): string
     {
-        return '<a class="button button-secondary" href="' . esc_url(wp_nonce_url(add_query_arg(['action' => $action] + $args, admin_url('admin-post.php')), $action)) . '">'
-            . esc_html($label) . '</a>';
+        return ListPage::button($label, wp_nonce_url(add_query_arg(['action' => $action] + $args, admin_url('admin-post.php')), $action));
     }
 }
