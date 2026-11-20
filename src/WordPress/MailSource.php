@@ -14,8 +14,9 @@ use Taxmod\Core\Import\Mail\MimeParser;
 use TaxMail\Core\Mailbox\CarrierNotice;
 use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
+use TaxMail\Core\Mailbox\NonOrderSort;
+use TaxMail\Core\Mailbox\PickupNotice;
 use TaxMail\Core\Mailbox\SenderTally;
-use TaxMail\Core\Mailbox\SortRules;
 use Taxmod\Core\Import\BacklogSource;
 use Taxmod\Core\Import\DutyRole;
 use Taxmod\Core\Import\FetchBatch;
@@ -216,7 +217,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         foreach (array_slice($pending, 0, self::LIMIT) as $uid) {
             $result = $fetcher->fetchOne($client, $uid);
 
-            if ($result->outcome === FetchOutcome::Proposed || $result->outcome === FetchOutcome::NoReceipt) {
+            if ($result->outcome === FetchOutcome::Proposed || $result->outcome === FetchOutcome::NoReceipt || PickupNotice::is($result->mail)) {
                 $client->move($uid, $inbox);
             } elseif ($result->outcome === FetchOutcome::Unrecognised && CarrierNotice::is($result->mail)) {
                 $client->move($uid, $discarded);
@@ -598,10 +599,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         return true;
     }
 
-    /**
-     * Where a mail goes that does not become an order proposal: his rules first (D-949), then the fixed rule that a
-     * shop's mail without an order — advertising, his own sales — is discarded. Null leaves it in the inbox.
-     */
+    /** Where a mail goes that does not become an order proposal (D-949, D-1516). Null leaves it in the inbox. */
     private function sortTarget(FetchedMail $result, ?string $default): ?string
     {
         $proposal = $result->proposal;
@@ -612,18 +610,10 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             return null;
         }
 
-        $ruled = $this->settings->rules->folderFor($result->mail->fromAddress, $result->mail->subject);
+        $noReceipt = $result->outcome === FetchOutcome::NoReceipt || ($proposal !== null && $proposal->kind === ProposalKind::Sold)
+            || ($result->outcome === FetchOutcome::Unrecognised && CarrierNotice::is($result->mail));
 
-        if ($ruled !== null) {
-            return SortRules::resolve($ruled, $this->settings->folders);
-        }
-
-        if ($result->outcome === FetchOutcome::NoReceipt || ($proposal !== null && $proposal->kind === ProposalKind::Sold)
-            || ($result->outcome === FetchOutcome::Unrecognised && CarrierNotice::is($result->mail))) {
-            return $this->settings->folders->discarded;
-        }
-
-        return $default;
+        return (new NonOrderSort($this->settings->rules, $this->settings->folders))->target($result->mail, $noReceipt, $default);
     }
 
     private function outcomeFolder(FetchOutcome $outcome): ?string
