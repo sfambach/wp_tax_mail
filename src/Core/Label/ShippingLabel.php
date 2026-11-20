@@ -3,7 +3,7 @@
 namespace TaxMail\Core\Label;
 
 /**
- * A postage label bought for one of his sales: the cart it was bought in, when, where its PDF can be fetched, and when
+ * A postage label bought for one of his sales or shipments (D-1511: of any carrier, «dhl» or «post»): the cart it was bought in, when, where its PDF can be fetched, and when
  * it was printed. The link and the PDF behind it carry the buyer's address, so a label is kept only as long as needed
  * (his word 2026-10-30: «nachdem sie gedruckt sind nach 2 wochen gelöscht werden»).
  */
@@ -21,12 +21,13 @@ final class ShippingLabel
         public readonly string $date,
         public readonly array $links,
         public readonly ?string $printedAt = null,
+        public readonly string $carrier = 'dhl',
     ) {
     }
 
     public function printed(string $at): self
     {
-        return new self($this->cart, $this->date, $this->links, $this->printedAt ?? $at);
+        return new self($this->cart, $this->date, $this->links, $this->printedAt ?? $at, $this->carrier);
     }
 
     public function expired(int $now): bool
@@ -37,10 +38,10 @@ final class ShippingLabel
         return (int) strtotime($from) < $now - $days * 86400;
     }
 
-    /** @return array{cart: string, date: string, links: list<string>, printed_at: ?string} */
+    /** @return array{cart: string, date: string, links: list<string>, printed_at: ?string, carrier: string} */
     public function toArray(): array
     {
-        return ['cart' => $this->cart, 'date' => $this->date, 'links' => $this->links, 'printed_at' => $this->printedAt];
+        return ['cart' => $this->cart, 'date' => $this->date, 'links' => $this->links, 'printed_at' => $this->printedAt, 'carrier' => $this->carrier];
     }
 
     /** @param array<string, mixed> $row what toArray() produced; `mixed` because it comes back from storage */
@@ -48,6 +49,9 @@ final class ShippingLabel
     {
         $printed = isset($row['printed_at']) && is_string($row['printed_at']) && $row['printed_at'] !== '' ? $row['printed_at'] : null;
 
-        return new self((string) ($row['cart'] ?? ''), (string) ($row['date'] ?? ''), array_values(array_map('strval', (array) ($row['links'] ?? []))), $printed);
+        // Stored before D-1511 without a carrier: those were all DHL's.
+        $carrier = isset($row['carrier']) && is_string($row['carrier']) && $row['carrier'] !== '' ? $row['carrier'] : 'dhl';
+
+        return new self((string) ($row['cart'] ?? ''), (string) ($row['date'] ?? ''), array_values(array_map('strval', (array) ($row['links'] ?? []))), $printed, $carrier);
     }
 }

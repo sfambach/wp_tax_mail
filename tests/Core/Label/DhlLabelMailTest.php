@@ -19,6 +19,7 @@ final class DhlLabelMailTest extends TestCase
             'date'  => '2026-10-23T18:20:40+02:00',
             'links' => ['https://www.dhl.de/int-versenden/gw/rest/init?token=abc123&download=letter&pos=1'],
             'printed_at' => null,
+            'carrier' => 'dhl',
         ], $label?->toArray());
     }
 
@@ -35,6 +36,13 @@ final class DhlLabelMailTest extends TestCase
         self::assertTrue($printed->expired($day('2026-10-20T10:00:00+02:00')));
         // The first print counts; printing again does not stretch the time.
         self::assertSame('2026-10-05T10:00:00+02:00', $printed->printed('2026-10-10T10:00:00+02:00')->printedAt);
+    }
+
+    public function testALabelStoredBeforeTheCarrierWasKnownIsDhls(): void
+    {
+        self::assertSame('dhl', ShippingLabel::fromArray(['cart' => 'C1', 'date' => '2026-10-01', 'links' => []])->carrier);
+        self::assertSame('post', ShippingLabel::fromArray((new ShippingLabel('C2', '2026-11-20', [], null, 'post'))->toArray())->carrier);
+        self::assertSame('post', (new ShippingLabel('C2', '2026-11-20', [], null, 'post'))->printed('2026-11-21')->carrier);
     }
 
     public function testForwardedCopyIsALabelToo(): void
