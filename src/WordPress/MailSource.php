@@ -16,6 +16,7 @@ use TaxMail\Core\Mailbox\ConnectionCheck;
 use TaxMail\Core\Mailbox\FolderPlan;
 use TaxMail\Core\Mailbox\NonOrderSort;
 use TaxMail\Core\Mailbox\PickupNotice;
+use TaxMail\Core\Mailbox\PickupRescue;
 use TaxMail\Core\Mailbox\SenderTally;
 use Taxmod\Core\Import\BacklogSource;
 use Taxmod\Core\Import\DutyRole;
@@ -65,6 +66,9 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
 
     /** How far «Nicht erkannt» was read again, and for which parsers. */
     private const RECHECK = 'taxmail_recheck';
+
+    /** The parser signature the discarded pickup notices were last taken back for (D-1516). */
+    private const PICKUP_RESCUE = 'taxmail_pickup_rescue';
 
     /** How many orders of each several-order mail the inbox has handled, until all are. */
     private const BUNDLES = 'taxmail_bundles_handled';
@@ -145,6 +149,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
             if ($canMove) {
                 $this->sweepLabels($client);
                 $this->recheckUnrecognised($client);
+                $this->rescuePickups($client);
             }
 
             array_push($proposals, ...self::fromExport());
@@ -178,6 +183,30 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
                 $client->move($uid, $imported);
             }
         }
+    }
+
+    /**
+     * A pickup notice in «Verworfen» from before D-1516 goes back to the inbox.
+     *
+     * @throws ImapException
+     */
+    private function rescuePickups(ImapClient $client): void
+    {
+        // ⚠️ *Once per signature, like the recheck: a new version or parser takes them back again, nothing else does.*
+        $signature = Plugin::VERSION . ':' . Plugin::registry()->signature();
+
+        if (get_option(self::PICKUP_RESCUE, '') === $signature) {
+            return;
+        }
+
+        $folder = FolderPlan::onServer($this->settings->folders->discarded, $client->delimiter());
+
+        if (in_array($folder, $client->folders(), true)) {
+            $client->select($folder);
+            (new PickupRescue())->run($client, FolderPlan::onServer($this->settings->folders->inbox, $client->delimiter()), self::LIMIT);
+        }
+
+        update_option(self::PICKUP_RESCUE, $signature, false);
     }
 
     /**
@@ -402,6 +431,7 @@ final class MailSource implements FetchingSource, BacklogSource, SearchingSource
         // The inbox forgot the open orders of an upload too; they come again from the first.
         ExportQueue::rewind();
         delete_option(self::RECHECK);
+        delete_option(self::PICKUP_RESCUE);
 
         $this->locked(function (ImapClient $client): void {
             $folders = $client->folders();

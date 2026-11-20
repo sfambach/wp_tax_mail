@@ -11,11 +11,35 @@ use Taxmod\Core\Import\Mail\MailMessage;
  */
 final class PickupNotice
 {
-    private const WORDS = '/packstation|postfiliale|filiale|paket\s?shop|parcel\s?shop|pick\s?up|abhol|paketbox/iu';
+    /** One list for the check here and the server's subject search; a space also matches no space. */
+    public const WORDS = ['packstation', 'filiale', 'paket shop', 'parcel shop', 'pick up', 'abhol', 'paketbox'];
     private const CALLED_OFF = '/storn|abgesagt|abgebrochen/iu';
 
     public static function is(MailMessage $mail): bool
     {
-        return preg_match(self::WORDS, $mail->subject) === 1 && preg_match(self::CALLED_OFF, $mail->subject) !== 1;
+        return preg_match(self::pattern(), $mail->subject) === 1 && preg_match(self::CALLED_OFF, $mail->subject) !== 1;
+    }
+
+    /** @return list<string> what to ask the server for; the subject search is a plain substring, so both spellings */
+    public static function searchTerms(): array
+    {
+        $terms = [];
+
+        foreach (self::WORDS as $word) {
+            $terms[] = $word;
+
+            if (str_contains($word, ' ')) {
+                $terms[] = str_replace(' ', '', $word);
+            }
+        }
+
+        return $terms;
+    }
+
+    private static function pattern(): string
+    {
+        $words = array_map(static fn (string $word): string => str_replace(' ', '\s?', preg_quote($word, '/')), self::WORDS);
+
+        return '/' . implode('|', $words) . '/iu';
     }
 }
