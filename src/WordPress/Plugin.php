@@ -26,7 +26,7 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.6.16';
+    public const VERSION     = '0.6.17';
     public const TEXT_DOMAIN = 'taxmail';
     /** The mail import is set up in the configuration (D-1585): the modeller's right «configure». */
     public const CAPABILITY  = \Taxmod\WordPress\Rights::CONFIGURE;
