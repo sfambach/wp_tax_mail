@@ -26,9 +26,10 @@ use Taxmod\WordPress\Import\Sources;
  */
 final class Plugin
 {
-    public const VERSION     = '0.6.16';
+    public const VERSION     = '0.6.17';
     public const TEXT_DOMAIN = 'taxmail';
-    public const CAPABILITY  = 'manage_options';
+    /** The mail import is set up in the configuration (D-1585): the modeller's right «configure». */
+    public const CAPABILITY  = \Taxmod\WordPress\Rights::CONFIGURE;
     public const TAB         = 'mail';
 
     /** Why the last sender count failed, for the redirect — per user, ten minutes. */
@@ -58,7 +59,7 @@ final class Plugin
         add_action('plugins_loaded', static function () use ($plugin, $file): void {
             if (! self::modellerReady()) {
                 add_action('admin_notices', static fn () => print '<div class="notice notice-error"><p><strong>Taxmod Mail:</strong> '
-                    . esc_html__('needs the Taxonomy Modeller 0.2.174 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
+                    . esc_html__('needs the Taxonomy Modeller 0.2.237 or later — the mail import is off until it is active.', 'taxmail') . '</p></div>');
 
                 return;
             }
@@ -70,8 +71,8 @@ final class Plugin
     public static function modellerReady(): bool
     {
         return interface_exists(BacklogSource::class) && class_exists(Sources::class) && class_exists(FetchInterval::class) && interface_exists(OrderMailParser::class)
-            // By version, not method_exists(): that compiled the 67 KB list page on every page view (D-1187; review 2026-11-17, Befund 6); 0.2.174 brings ListPage::button (D-1500).
-            && version_compare(\Taxmod\WordPress\Plugin::VERSION, '0.2.174', '>=');
+            // By version, not method_exists(): that compiled the 67 KB list page on every page view (D-1187; review 2026-11-17, Befund 6); 0.2.174 brings ListPage::button (D-1500), 0.2.237 the rights table (D-1585).
+            && version_compare(\Taxmod\WordPress\Plugin::VERSION, '0.2.237', '>=');
     }
 
     private function hook(string $file): void
@@ -385,7 +386,7 @@ final class Plugin
         $action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : '';
 
         if ($tab !== self::TAB && ! str_starts_with($action, 'taxmail_')
-            || ! function_exists('current_user_can') || ! current_user_can('manage_options')) {
+            || ! function_exists('current_user_can') || ! class_exists(\Taxmod\WordPress\Rights::class) || ! current_user_can(self::CAPABILITY)) {
             return $message;
         }
 
